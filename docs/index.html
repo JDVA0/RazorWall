@@ -35,17 +35,23 @@ body{
 
 /* --- barra de deslizadores --- */
 #bar{
-  position:fixed;left:50%;bottom:26px;transform:translateX(-50%);
-  display:flex;gap:26px;align-items:flex-end;
-  padding:0 4px;opacity:.15;
-  mix-blend-mode:difference;
-  transition:opacity .35s ease;
+  position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
+  display:flex;gap:24px;align-items:flex-end;
+  padding:13px 22px 11px;
+  /* sin fondo, los deslizadores se perdian sobre las zonas claras */
+  background:rgba(0,0,0,.55);
+  -webkit-backdrop-filter:blur(22px) saturate(160%);
+  backdrop-filter:blur(22px) saturate(160%);
+  border:1px solid rgba(255,255,255,.10);
+  border-radius:16px;
+  box-shadow:0 10px 34px rgba(0,0,0,.4);
+  opacity:.86;transition:opacity .3s ease;
 }
-#bar:hover,#bar:focus-within{opacity:.85}
-.ctl{display:flex;flex-direction:column;gap:7px;width:104px}
+#bar:hover,#bar:focus-within{opacity:1}
+.ctl{display:flex;flex-direction:column;gap:8px;width:104px}
 .ctl label{
   font-size:9px;letter-spacing:.14em;text-transform:uppercase;
-  opacity:.65;white-space:nowrap;
+  color:rgba(255,255,255,.72);white-space:nowrap;
 }
 input[type=range]{
   -webkit-appearance:none;appearance:none;
@@ -64,13 +70,18 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
 
 /* --- pista de uso --- */
 #hint{
-  position:fixed;left:50%;bottom:96px;transform:translateX(-50%);
+  position:fixed;left:50%;bottom:104px;transform:translateX(-50%);
+  padding:7px 14px;border-radius:999px;
+  background:rgba(0,0,0,.5);
+  -webkit-backdrop-filter:blur(18px);
+  backdrop-filter:blur(18px);
+  border:1px solid rgba(255,255,255,.08);
   font-size:10px;letter-spacing:.18em;text-transform:uppercase;
   white-space:nowrap;opacity:0;pointer-events:none;
-  mix-blend-mode:difference;transition:opacity .6s ease;
+  transition:opacity .6s ease;
 }
-#hint.show{opacity:.5}
-#hint i{font-style:normal;opacity:.45;margin:0 .5em}
+#hint.show{opacity:.82}
+#hint i{font-style:normal;opacity:.4;margin:0 .5em}
 
 /* --- aviso grande cuando no hay motor --- */
 #fatal{
