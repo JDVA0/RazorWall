@@ -321,15 +321,22 @@ el binario.
 No hay paneles: abajo hay una sola barra negra con el selector de tema y los
 deslizadores, y el resto se hace con el ratón o el teclado.
 
-El selector de tema tiene los seis temas y un botón de **al azar** que elige uno.
+El selector de tema tiene los seis temas y un botón de **al azar**.
+
+Eligiendo un tema concreto, ese tema se queda fijo: el clic y el espacio dan
+otro fondo **del mismo tema**, porque si has pedido ver ese tema no tiene sentido
+que el siguiente venga de otro. Solo la semilla (y el resto de controles) cambian.
+Volviendo a **al azar**, cada fondo nuevo trae el tema que toque.
+
 Los botones se construyen con los nombres que publica el motor, así que la
 página no lleva su propia copia de la lista. Cuando el tema cambia por otra vía
-—un clic en el fondo o las teclas `1` a `6`— el botón correspondiente se
-marca solo.
+—el clic en el fondo o las teclas `1` a `6`— el botón correspondiente se marca
+solo. En modo azar se marca el botón **al azar**, no el tema que acaba de salir,
+para que se vea de un vistazo que el siguiente puede ser otro.
 
 <table>
 <tr>
-<td width="33%"><b>clic</b> o <b>espacio</b><br><sub>fondo nuevo al azar</sub></td>
+<td width="33%"><b>clic</b> o <b>espacio</b><br><sub>fondo nuevo<br>(tema fijo si elegiste uno)</sub></td>
 <td width="33%"><b>arrastrar</b><br><sub>mueve el fondo, sin generar otro</sub></td>
 <td width="33%"><b>s</b><br><sub>descarga el PNG</sub></td>
 </tr>

@@ -35,7 +35,6 @@ body{
 
 /* --- barra de deslizadores --- */
 #bar{
-  position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
   display:flex;flex-direction:column;gap:14px;
   padding:14px 22px 12px;
   /* negro opaco: con el fondo traslucido los deslizadores se perdian
@@ -44,6 +43,7 @@ body{
   border:1px solid rgba(255,255,255,.12);
   border-radius:16px;
   box-shadow:0 10px 34px rgba(0,0,0,.5);
+  width:100%;
 }
 #bar:hover,#bar:focus-within{border-color:rgba(255,255,255,.22)}
 
@@ -94,9 +94,17 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
 }
 #mark:hover{opacity:.9}
 
+/* --- anclaje inferior ---
+   La pista y la barra viven en la misma columna, asi que no se solapan
+   por mas que la barra crezca o los temas passen a dos lineas. */
+#dock{
+  position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
+  display:flex;flex-direction:column;align-items:center;gap:12px;
+  max-width:min(94vw,760px);
+}
+
 /* --- pista de uso --- */
 #hint{
-  position:fixed;left:50%;bottom:104px;transform:translateX(-50%);
   padding:7px 14px;border-radius:999px;
   background:#000;
   border:1px solid rgba(255,255,255,.12);
@@ -129,6 +137,8 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
 
 <img id="mark" src="logo.svg" alt="" width="104" height="30">
 
+<div id="dock">
+
 <div id="hint">
   <i>·</i>clic <i>·</i>espacio <i>·</i>arrastra <i>·</i>s guardar
 </div>
@@ -154,6 +164,8 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
   </div>
   </div>
 </div>
+
+</div><!-- /dock -->
 
 <div id="fatal">
   <div class="in">
@@ -190,6 +202,9 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
     mirror: false,
     smooth: false,
     noise: 40,
+    // false = hay un tema elegido y se respeta; true = cada fondo nuevo
+    // puede traer el tema que toque
+    alAzar: true,
     zoom: 1,
     x: 0, y: 0
   };
@@ -304,6 +319,7 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
       b.setAttribute("aria-pressed", String(nombre === st.theme));
       b.addEventListener("click", function(){
         st.theme = nombre;
+        st.alAzar = false;
         syncTema();
         schedule();
         poke();
@@ -316,6 +332,7 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
     bRnd.type = "button";
     bRnd.textContent = "al azar";
     bRnd.addEventListener("click", function(){
+      st.alAzar = true;
       st.theme = THEMES[rnd(THEMES.length)];
       syncTema();
       schedule();
@@ -327,20 +344,26 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
     // que hay una forma de reflejar el estado sin volver a crear botones.
     syncTema = function(){
       nombres.forEach(function(nombre, i){
-        botones[i].setAttribute("aria-pressed", String(nombre === st.theme));
+        botones[i].setAttribute("aria-pressed",
+          String(!st.alAzar && nombre === st.theme));
       });
+      bRnd.setAttribute("aria-pressed", String(st.alAzar));
     };
   }
 
   // --- acciones ---------------------------------------------------------
+  // Con un tema elegido solo cambia la semilla: si has pedido ver este
+  // tema, no tiene sentido que el siguiente fondo venga de otro.
   function next(){
-    st.theme  = THEMES[rnd(THEMES.length)];
-    st.levels = LEVELS[rnd(LEVELS.length)];
-    st.seed   = rnd(2147483647);
-    st.noise  = rnd(21) * 5;
+    st.seed = rnd(2147483647);
+    if(st.alAzar){
+      st.theme = THEMES[rnd(THEMES.length)];
+      st.levels = LEVELS[rnd(LEVELS.length)];
+      st.noise = rnd(21) * 5;
+      s2.value = LEVELS.indexOf(st.levels);
+      s4.value = st.noise;
+    }
     syncTema();
-    s2.value  = LEVELS.indexOf(st.levels);
-    s4.value  = st.noise;
     st.x = st.y = 0; st.zoom = 1; s3.value = 100;
     schedule();
   }
@@ -425,7 +448,7 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
     else if(k === "Shift"){ st.seed = rnd(2147483647); schedule(); poke(); }
     else if(k === "s" || k === "S"){ save(); poke(); }
     else if(k === "0"){ st.x=st.y=0; st.zoom=1; s3.value=100; place(); poke(); }
-    else if(k >= "1" && k <= "6"){ st.theme = THEMES[+k-1]; syncTema(); schedule(); poke(); }
+    else if(k >= "1" && k <= "6"){ st.theme = THEMES[+k-1]; st.alAzar = false; syncTema(); schedule(); poke(); }
     else if(k === "m" || k === "M"){ st.mirror = !st.mirror; schedule(); poke(); }
     else if(k === "i" || k === "I"){ st.smooth = !st.smooth; schedule(); poke(); }
   });

@@ -203,9 +203,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check("el boton de al azar elige un tema real",
     llamadas.length > bAntesRnd && sandbox.razor.themes.indexOf(tRnd.theme) >= 0,
     tRnd.theme);
-  const idxRnd = sandbox.razor.themes.indexOf(tRnd.theme);
-  check("el tema sorteado sale marcado",
-    temaBtns[idxRnd].getAttribute("aria-pressed") === "true");
+  // en modo azar se marca "al azar", no el tema que salio: asi se ve de
+  // una que el siguiente fondo puede venir de otro
+  check("en modo azar se marca el boton aleatorio, no el tema",
+    temaBtns[6].getAttribute("aria-pressed") === "true" &&
+    temaBtns[sandbox.razor.themes.indexOf(tRnd.theme)]
+      .getAttribute("aria-pressed") === "false");
 
   const bAntesTecla = llamadas.length;
   fire("keydown", { key: "2", preventDefault() {} });
@@ -223,6 +226,44 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check("el clic en el fondo tambien sincroniza el selector",
     tClic >= 0 && temaBtns[tClic].getAttribute("aria-pressed") === "true",
     "tema " + tClic);
+
+  // --- el tema elegido se respeta ---
+  temaBtns[2].click();           // desert, fija el tema
+  await sleep(40);
+  const fijados = [];
+  for (let i = 0; i < 4; i++) {
+    fire("keydown", { key: " ", preventDefault() {} });
+    await sleep(20);
+    fijados.push(llamadas[llamadas.length - 1].theme);
+  }
+  check("con un tema elegido, cuatro fondos seguidos son del mismo tema",
+    fijados.every((t) => t === "desert"), fijados.join(","));
+  const semillas = [];
+  for (let i = 0; i < 4; i++) {
+    fire("keydown", { key: " ", preventDefault() {} });
+    await sleep(20);
+    semillas.push(llamadas[llamadas.length - 1].seed);
+  }
+  check("pero la semilla si cambia",
+    new Set(semillas).size > 1, semillas.join(","));
+  check("con tema fijo se marca el tema, no el de al azar",
+    temaBtns[2].getAttribute("aria-pressed") === "true" &&
+    temaBtns[6].getAttribute("aria-pressed") === "false");
+
+  // al volver a "al azar", los temas vuelven a cambiar
+  temaBtns[6].click();
+  await sleep(40);
+  const variados = [];
+  for (let i = 0; i < 8; i++) {
+    fire("keydown", { key: " ", preventDefault() {} });
+    await sleep(20);
+    variados.push(llamadas[llamadas.length - 1].theme);
+  }
+  check("en modo al azar los temas vuelven a cambiar",
+    new Set(variados).size > 1, variados.join(","));
+  check("en modo al azar se marca el boton aleatorio",
+    temaBtns[6].getAttribute("aria-pressed") === "true" &&
+    temaBtns[2].getAttribute("aria-pressed") === "false");
 
   check("el primer render lleva el ruido por defecto",
     ini.noise === 40, String(ini.noise));
