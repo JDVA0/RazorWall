@@ -23,7 +23,10 @@ function check(nombre, cond, extra) {
 }
 
 let ctxCalls = 0;
-const ctx2d = { drawImage() { ctxCalls++; } };
+let ctx2d = {
+  putImageData(img, x, y) { ctxCalls++; ctx2d._last = { x, y, w: img.width, h: img.height }; },
+  drawImage() { ctxCalls++; },
+};
 
 function makeEl(tag) {
   const handlers = {};
@@ -40,6 +43,7 @@ function makeEl(tag) {
       contains: (c) => cls.has(c),
     },
     getContext: () => ctx2d,
+    toBlob(cb) { cb(new BlobStub()); },
     addEventListener(t, f) { (handlers[t] = handlers[t] || []).push(f); },
     appendChild(c) { this.children.push(c); return c; },
     remove() {},
@@ -68,6 +72,9 @@ s2.value = "2"; s3.value = "100";
 const fatal = makeEl("div");
 const fatalT = makeEl("h1");
 const fatalP = makeEl("p");
+class BlobStub {
+  constructor(p) { this.size = p[0]?.length || 0; }
+}
 const byId = {
   stage: makeEl("div"), w: canvas, bar: bar, hint: hint, s1: slider, s2: s2, s3: s3,
   fatal: fatal, "fatal-t": fatalT, "fatal-p": fatalP,
@@ -86,6 +93,10 @@ const sandbox = {
   requestAnimationFrame: (f) => setTimeout(f, 0),
   URL: { createObjectURL: () => "blob:test", revokeObjectURL() {} },
   Image: class { set src(v) { this._s = v; setTimeout(() => this.onload && this.onload(), 0); } },
+  // ImageData solo necesita llevar los datos al putImageData del stub
+  ImageData: class {
+    constructor(data, w, h) { this.data = data; this.width = w; this.height = h; }
+  },
   innerWidth: 1440, innerHeight: 900, devicePixelRatio: 2,
   addEventListener: (t, f) => { (winHandlers[t] = winHandlers[t] || []).push(f); },
   document: {
@@ -123,6 +134,24 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const llamadas = [];
   sandbox._realRender = sandbox.razorwall.render;
   sandbox.razorwall.render = (o) => { llamadas.push(o); return new Uint8Array(8); };
+
+  // El camino progresivo se comprueba aparte, en las pruebas de Go y del
+  // wasm. Aqui solo hace falta que la pagina lo invoque bien, asi que se
+  // sustituye por una version rapida que registra las llamadas.
+  sandbox._bands = [];
+  sandbox.razorwall.begin = (o) => {
+    llamadas.push(o);
+    sandbox._bands = [];          // solo interesan las franjas del ultimo render
+    return { gridH: 21, width: 320, height: 180, theme: o.theme || "island" };
+  };
+  let _rows = 0;
+  sandbox.razorwall.step = (n) => { _rows = Math.min(21, _rows + n); return _rows; };
+  sandbox.razorwall.band = (y0, y1) => {
+    sandbox._bands.push([y0, y1]);
+    const b = new Uint8Array(320 * (y1 - y0) * 4);
+    b.fill(200);
+    return b;
+  };
 
   vm.runInContext(code, sandbox, { filename: "index.html<script>" });
   // arranque: el script llama fit() y prepara el fetch
@@ -235,7 +264,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check("la pista se retira al usar la pagina", hint._cls.has("hide"));
 
   // --- se pinta en el canvas ---
-  check("la imagen se dibuja en el lienzo", ctxCalls > 0, "drawImage: " + ctxCalls);
+  check("la imagen se pinta por franjas", ctxCalls > 1, "franjas: " + ctxCalls);
+  check("las franjas cubren toda la altura",
+    sandbox._bands.length > 0 &&
+    sandbox._bands[0][0] === 0 &&
+    sandbox._bands[sandbox._bands.length - 1][1] === 180,
+    JSON.stringify(sandbox._bands.slice(0, 2)));
+  check("las franjas van en orden y sin huecos",
+    sandbox._bands.every((b, i) => b[0] === (i === 0 ? 0 : sandbox._bands[i - 1][1])),
+    JSON.stringify(sandbox._bands.slice(0, 3)));
 
   // --- redimensionado ---
   const wAntes = canvas.width;

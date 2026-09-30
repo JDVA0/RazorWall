@@ -21,9 +21,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # La version importa por dos motivos: docs/razorwall.wasm se compila
+      # con ella, y docs/wasm_exec.js tiene que ser de la misma. Los binarios
+      # solo son reproducibles si el toolchain es el mismo, asi que se fija
+      # aqui y hay que regenerarlos cuando se cambie.
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.26'
       - name: gofmt
         run: |
           out=$(gofmt -l .)
@@ -41,13 +46,16 @@ jobs:
         with:
           node-version: '22'
 
-      # La web se compila y se comprueba igual que el binario: el wasm debe
-      # producir exactamente los mismos bytes que la CLI, y el script de la
-      # pagina debe cablear bien los controles.
+      # La web se comprueba igual que el binario: el wasm debe producir
+      # exactamente los mismos bytes que la CLI, y el script de la pagina
+      # debe cablear bien los controles.
+      #
+      # wasm_exec.js no se copia aqui a proposito: va versionado y tiene que
+      # ser exactamente el de la toolchain que compilo el .wasm. Regenerar
+      # solo el .wasm y no el .js dejaria la pagina sin arrancar.
       - name: compilar wasm
         run: |
           GOOS=js GOARCH=wasm go build -trimpath -ldflags="-s -w" -o docs/razorwall.wasm .
-          cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" docs/
 
       - name: el wasm no debe desviarse de la CLI
         run: node test/wasm_test.cjs
@@ -55,7 +63,23 @@ jobs:
       - name: comprobar el wasm versionado
         run: |
           if ! git diff --quiet -- docs/razorwall.wasm; then
-            echo "::error::docs/razorwall.wasm no coincide con el fuente. Recompilalo y versiona el resultado."
+            echo "::error::docs/razorwall.wasm no coincide con el fuente."
+            echo "Regeneralo con el mismo Go del CI (1.26) y versiona el resultado."
+            exit 1
+          fi
+
+      - name: comprobar que wasm_exec.js es el del toolchain
+        run: |
+          for p in lib/wasm misc/wasm; do
+            if [ -f "$(go env GOROOT)/$p/wasm_exec.js" ]; then
+              src="$(go env GOROOT)/$p/wasm_exec.js"
+              break
+            fi
+          done
+          [ -n "${src:-}" ] || { echo "::error::no encuentro wasm_exec.js en el GOROOT"; exit 1; }
+          if ! cmp -s "$src" docs/wasm_exec.js; then
+            echo "::error::docs/wasm_exec.js no es el de este Go ($src)."
+            echo "Copia ese archivo a docs/ y versiona el cambio."
             exit 1
           fi
 

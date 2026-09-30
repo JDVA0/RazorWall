@@ -216,6 +216,77 @@ func TestGenerateUsaEscaladoPointyPorDefecto(t *testing.T) {
 	}
 }
 
+// TestRenderProgresivoCoincideConElCompleto es el que sostiene la pagina:
+// si las franjas no dieran la misma imagen, el fondo que se ve mientras se
+// genera seria distinto del que se acaba guardando.
+func TestRenderProgresivoCoincideConElCompleto(t *testing.T) {
+	casos := []Spec{
+		{Seed: 20260930, Theme: "island", Levels: 16, Pixels: 160, Width: 640, Height: 360},
+		{Seed: 7, Theme: "neon", Levels: 4, Pixels: 120, Width: 480, Height: 270},
+		{Seed: 99, Theme: "volcano", Levels: 8, Pixels: 160, Width: 640, Height: 360, Mirror: true},
+		{Seed: 555, Theme: "glacier", Levels: 32, Pixels: 160, Width: 640, Height: 360, Smooth: true},
+	}
+	for _, spec := range casos {
+		completo, err := spec.Render(rand.New(rand.NewSource(spec.Seed)))
+		if err != nil {
+			t.Fatalf("Render(%s): %v", spec.Theme, err)
+		}
+
+		p, err := NewProgressive(spec, rand.New(rand.NewSource(spec.Seed)))
+		if err != nil {
+			t.Fatalf("NewProgressive(%s): %v", spec.Theme, err)
+		}
+		// el campo a trozos, como hara el navegador
+		paso := 1 + p.GridHeight()/6
+		for f := 0; f < p.GridHeight(); f += paso {
+			p.Step(paso)
+		}
+		if !p.Ready() {
+			t.Fatalf("%s: el campo no se dio por terminado", spec.Theme)
+		}
+
+		// y la imagen en franjas horizontales
+		const franjas = 9
+		alto := (spec.Height + franjas - 1) / franjas
+		armado := image.NewRGBA(image.Rect(0, 0, spec.Width, spec.Height))
+		for y := 0; y < spec.Height; y += alto {
+			y1 := y + alto
+			if y1 > spec.Height {
+				y1 = spec.Height
+			}
+			banda := p.Band(y, y1)
+			for dy := 0; dy < y1-y; dy++ {
+				copy(armado.Pix[(y+dy)*armado.Stride:], banda.Pix[dy*banda.Stride:])
+			}
+		}
+		if !bytes.Equal(armado.Pix, completo.Pix) {
+			t.Errorf("tema %s: las franjas no coinciden con el render completo", spec.Theme)
+		}
+	}
+}
+
+func TestRenderProgresivoToleraBandasImprobables(t *testing.T) {
+	spec := Spec{Seed: 5, Theme: "desert", Levels: 16, Pixels: 120, Width: 480, Height: 270}
+	p, err := NewProgressive(spec, rand.New(rand.NewSource(5)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for p.Step(50) < p.GridHeight() {
+	}
+	casos := [][2]int{{-10, 40}, {200, 400}, {100, 100}, {0, 9999}}
+	for _, c := range casos {
+		b := p.Band(c[0], c[1])
+		if b.Bounds().Dy() < 0 {
+			t.Fatalf("banda %v dio alto negativo", c)
+		}
+		for i := 3; i < len(b.Pix); i += 4 {
+			if b.Pix[i] != 0xFF {
+				t.Fatalf("banda %v: pixel sin opacidad completa", c)
+			}
+		}
+	}
+}
+
 func TestGuardarPNGRespetaElTamanoPedido(t *testing.T) {
 	dir := t.TempDir()
 	rng := rand.New(rand.NewSource(3))

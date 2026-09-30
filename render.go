@@ -243,46 +243,80 @@ const ditherAmt = 0.035
 // Campo de altura
 // ---------------------------------------------------------------------------
 
+// fieldParams fija los parametros del campo de altura una sola vez.
+//
+// Separarlo del calculo permite llenar el campo por trozos, que es lo que
+// usa la pagina web para no bloquear el navegador con un render largo. Los
+// parametros se sortean aqui y no durante el relleno, para que todos los
+// trozos salgan identicos entre si.
+type fieldParams struct {
+	octaves int
+	gain    float64
+	span    float64
+	warp    float64
+	ox, oy  float64
+	seedOff int64
+}
+
+func newFieldParams(rng *rand.Rand, seed int64) fieldParams {
+	return fieldParams{
+		octaves: 4 + rng.Intn(4),           // 4..7
+		gain:    0.45 + rng.Float64()*0.13, // 0.45..0.58
+		// unidades de ruido a lo ancho: 2-5 da islas reconocibles
+		span:    2.0 + rng.Float64()*2.5,
+		warp:    rng.Float64() * 1.2,
+		ox:      rng.Float64() * 400,
+		oy:      rng.Float64() * 400,
+		seedOff: seed + int64(rng.Intn(10000)),
+	}
+}
+
 // heightmap genera el campo 0..1 con octavas de Perlin y domain warping.
 func heightmap(w, h int, seed int64, rng *rand.Rand) []float64 {
-	octaves := 4 + rng.Intn(4)        // 4..7
-	gain := 0.45 + rng.Float64()*0.13 // 0.45..0.58
-	// unidades de ruido a lo ancho: 2-5 da islas reconocibles
-	span := 2.0 + rng.Float64()*2.5
-	warp := rng.Float64() * 1.2
-	ox := rng.Float64() * 400
-	oy := rng.Float64() * 400
-	seedOff := seed + int64(rng.Intn(10000))
-
-	sx := span / float64(w)
-	sy := span / float64(h)
-	warpX := warp * 2
-
+	fp := newFieldParams(rng, seed)
 	out := make([]float64, w*h)
-	idx := 0
-	for y := 0; y < h; y++ {
-		baseY := float64(y)*sy + oy
+	fp.fill(out, w, h, 0, h)
+	normalize(out)
+	return out
+}
+
+// fill calcula las filas [y0,y1) del campo dentro de out, que tiene que
+// medir w*h. Se puede llamar por trozos; normalize() se aplica despues
+// sobre el campo entero, porque los valores se estiran de forma global y
+// hacerlo por partes daria un resultado distinto.
+func (fp fieldParams) fill(out []float64, w, h, y0, y1 int) {
+	if y0 < 0 {
+		y0 = 0
+	}
+	if y1 > h {
+		y1 = h
+	}
+	sx := fp.span / float64(w)
+	sy := fp.span / float64(h)
+	warpX := fp.warp * 2
+
+	idx := y0 * w
+	for y := y0; y < y1; y++ {
+		baseY := float64(y)*sy + fp.oy
 		for x := 0; x < w; x++ {
-			baseX := float64(x)*sx + ox
+			baseX := float64(x)*sx + fp.ox
 			var fx, fy float64
-			if warp > 0.01 {
+			if fp.warp > 0.01 {
 				// El desplazamiento va a variables propias: aplicarlo
 				// sobre baseX/baseY los contaminaria para el resto de
 				// la fila y el ruido saldria a rayas verticales.
-				wx := perlin(baseX*0.5+31, baseY*0.5+17, seedOff+5, 3, 0.5)
-				wy := perlin(baseX*0.5+11, baseY*0.5+47, seedOff+9, 3, 0.5)
+				wx := perlin(baseX*0.5+31, baseY*0.5+17, fp.seedOff+5, 3, 0.5)
+				wy := perlin(baseX*0.5+11, baseY*0.5+47, fp.seedOff+9, 3, 0.5)
 				fx = baseX + (wx-0.5)*warpX
 				fy = baseY + (wy-0.5)*warpX
 			} else {
-				fx, fy = baseX, baseY
+				fx = baseX
+				fy = baseY
 			}
-			out[idx] = perlin(fx, fy, seedOff, octaves, gain)
+			out[idx] = perlin(fx, fy, fp.seedOff, fp.octaves, fp.gain)
 			idx++
 		}
 	}
-
-	normalize(out)
-	return out
 }
 
 // normalize estira los valores a 0..1 para que las bandas salgan repartidas.
@@ -314,8 +348,13 @@ func normalize(v []float64) {
 
 // render dibuja el campo de altura como pixel art en la rejilla w x h.
 func render(w, h int, seed int64, rng *rand.Rand, theme string, levels int, mirror bool) *image.RGBA {
+	return colorsFromHeights(heightmap(w, h, seed, rng), w, h, theme, levels, mirror)
+}
+
+// colorsFromHeights mapea un campo de altura ya normalizado a pixeles de
+// color: rampa de bioma, dithering y cuantizacion.
+func colorsFromHeights(heights []float64, w, h int, theme string, levels int, mirror bool) *image.RGBA {
 	ramp := themes[theme]
-	heights := heightmap(w, h, seed, rng)
 
 	if mirror {
 		// Horizontal mirror: the terrain becomes symmetrical, which
@@ -448,6 +487,118 @@ func (s Spec) Render(rng *rand.Rand) (*image.RGBA, error) {
 // levelToneCounts maps a tone count to its flag name, used to validate
 // the --levels values the browser sends.
 var levelToneCounts = map[int]string{4: "poster", 8: "retro", 16: "clasico", 32: "medio", 64: "suave"}
+
+// ---------------------------------------------------------------------------
+// Render progresivo
+// ---------------------------------------------------------------------------
+//
+// La misma imagen, pero calculada en trozos para que quien la pinta pueda ir
+// mostrando el resultado a medida que sale. El navegador bloquea su hilo
+// mientras dura un render largo, asi que trocear el campo de altura (que es
+// la parte cara) mantiene la pagina viva.
+//
+// El escalado se hace una sola vez con scalePointy o scaleBilinear, los
+// mismos que usa la CLI: las bandas recortan ese resultado, de modo que no
+// puede haber dos implementaciones que se separen.
+
+type Progressive struct {
+	spec     Spec
+	fp       fieldParams
+	heights  []float64
+	grid     *image.RGBA
+	scaled   *image.RGBA
+	pw, ph   int
+	outW     int
+	outH     int
+	rows     int
+	finished bool
+}
+
+// NewProgressive prepara el trabajo y devuelve el numero de filas de campo
+// que habra que calcular.
+func NewProgressive(spec Spec, rng *rand.Rand) (*Progressive, error) {
+	if _, err := spec.ResolveTheme(rng); err != nil {
+		return nil, err
+	}
+	pw, ph := spec.GridSize()
+	return &Progressive{
+		fp:      newFieldParams(rng, spec.Seed),
+		heights: make([]float64, pw*ph),
+		pw:      pw,
+		ph:      ph,
+		outW:    spec.Width,
+		outH:    spec.Height,
+		spec:    spec,
+	}, nil
+}
+
+// Step calcula hasta n filas mas del campo y devuelve cuantas lleva.
+func (p *Progressive) Step(n int) int {
+	if p.finished || p.rows >= p.ph {
+		return p.rows
+	}
+	if n < 1 {
+		n = 1
+	}
+	y1 := p.rows + n
+	if y1 > p.ph {
+		y1 = p.ph
+	}
+	p.fp.fill(p.heights, p.pw, p.ph, p.rows, y1)
+	p.rows = y1
+	return p.rows
+}
+
+// GridHeight es el numero de filas de campo que hay que calcular.
+func (p *Progressive) GridHeight() int { return p.ph }
+
+// Ready dice si el campo esta completo y ya se puede pintar.
+func (p *Progressive) Ready() bool { return p.rows >= p.ph }
+
+// finish normaliza el campo, lo colorea y lo escala una sola vez.
+func (p *Progressive) finish() {
+	if p.scaled != nil {
+		return
+	}
+	normalize(p.heights)
+	levels := p.spec.Levels
+	if _, ok := levelToneCounts[levels]; !ok {
+		levels = 16
+	}
+	p.grid = colorsFromHeights(p.heights, p.pw, p.ph, p.spec.Theme, levels, p.spec.Mirror)
+	if p.spec.Smooth {
+		p.scaled = scaleBilinear(p.grid, p.outW, p.outH)
+	} else {
+		p.scaled = scalePointy(p.grid, p.outW, p.outH)
+	}
+	p.finished = true
+}
+
+// Band devuelve las filas [y0,y1) de la imagen final, recortadas del
+// resultado ya escalado.
+func (p *Progressive) Band(y0, y1 int) *image.RGBA {
+	if y0 < 0 {
+		y0 = 0
+	}
+	if y1 > p.outH {
+		y1 = p.outH
+	}
+	if y1 <= y0 {
+		return image.NewRGBA(image.Rect(0, 0, p.outW, 0))
+	}
+	p.finish()
+	out := image.NewRGBA(image.Rect(0, 0, p.outW, y1-y0))
+	for y := y0; y < y1; y++ {
+		copy(out.Pix[(y-y0)*out.Stride:], p.scaled.Pix[y*p.scaled.Stride:])
+	}
+	return out
+}
+
+// Image devuelve la imagen entera, calculando lo que falte.
+func (p *Progressive) Image() *image.RGBA {
+	p.finish()
+	return p.scaled
+}
 
 // scalePointy escala con vecino mas cercano: cada pixel de la rejilla se
 // convierte en un bloque nitido, que es el efecto pixel art.

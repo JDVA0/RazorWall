@@ -329,16 +329,48 @@ Los deslizadores de abajo controlan los píxeles de la rejilla, los niveles de
 color y el zoom. El zoom no vuelve a generar la imagen: solo la amplía, así que
 responde al instante.
 
+### Se ve cómo se forma
+
+El fondo no aparece de golpe. El motor expone el dibujo en dos fases y la página
+las va pidiendo:
+
+- `begin(opts)` deja el trabajo preparado y dice cuántas filas de campo faltan.
+- `step(n)` calcula `n` filas del campo de altura, que es la parte cara.
+- `band(y0, y1)` devuelve las franjas ya coloreadas, como RGBA crudo.
+
+Entre una llamada y la siguiente se cede el hilo al navegador, así que el fondo
+se ve crecer por franjas horizontales y la página no se congela a media
+generación. Si mueves un deslizador mientras se dibuja, el render en curso se
+abandona y empieza el nuevo.
+
+La descarga sale del propio lienzo con `toBlob`, así que no hace falta generar
+nada por segunda vez.
+
+Las franjas tienen que dar **exactamente** la misma imagen que el render de una
+pasada. Eso lo comprueban `TestRenderProgresivoCoincideConElCompleto` y las
+bandas de `wasm_test.cjs`, porque si no, el fondo que ves mientras se genera
+sería distinto del que se guarda.
+
 ### Compilar la versión web
 
 ```bash
 GOOS=js GOARCH=wasm go build -trimpath -ldflags="-s -w" -o docs/razorwall.wasm .
-cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" docs/
 ```
 
-`wasm_exec.js` es el pegamento entre Go y el navegador, y lo copia la propia
-toolchain; conviene versionarlo para que la página no dependa de que se
-olvide regenerarlo.
+`wasm_exec.js` va versionado en `docs/` y **no hay que regenerarlo**: es el
+pegamento entre Go y el navegador y tiene que ser de la misma versión de Go que
+compiló el `.wasm`. La ruta depende de la versión (en Go 1.24 y posteriores está
+en `lib/wasm/`, antes en `misc/wasm/`), y por eso la busca el CI en lugar de
+fijarla:
+
+```bash
+for p in lib/wasm misc/wasm; do
+  [ -f "$(go env GOROOT)/$p/wasm_exec.js" ] && cp "$(go env GOROOT)/$p/wasm_exec.js" docs/ && break
+done
+```
+
+Cambiar la versión de Go implica regenerar **los dos** archivos, o la página se
+quedará sin arrancar.
 
 La página **necesita servirse por http**, no vale con abrir el archivo a doble
 clic: los navegadores bloquean la lectura de un `.wasm` desde `file://`. Si lo
@@ -412,7 +444,7 @@ negro.
 ```bash
 go build -o razorwall .
 go test ./...                     # núcleo: determinismo, ruido, escalado, CLI
-node test/wasm_test.cjs           # el wasm frente a la CLI, byte a byte
+node test/wasm_test.cjs           # el wasm frente a la CLI, y las franjas
 node test/page_test.cjs           # el JS de docs/index.html con un DOM simulado
 gofmt -l .                        # debe salir vacío
 go vet ./...
@@ -435,7 +467,8 @@ vuelve a dibujar.
 ### Estructura
 
 ```
-render.go         núcleo: ruido Perlin, temas, cuantización y escalado
+render.go         núcleo: ruido Perlin, temas, cuantización, escalado y
+                  el render progresivo por franjas
 razorwall.go      CLI: banner, lectura de argumentos y escritura de archivos
 wasm.go           bindings para el navegador (syscall/js)
 razorwall_test.go tests del núcleo y de la CLI
@@ -445,7 +478,10 @@ images/           capturas del catálogo visual
 ```
 
 El núcleo no toca el disco ni la terminal, y por eso lo comparten sin cambios la
-CLI y el navegador. La entrada común es `Spec.Render`.
+CLI y el navegador. Hay dos entradas: `Spec.Render` para el render de una
+pasada, que usa la CLI, y `Progressive` para el troceado, que usa la página.
+Ambas comparten el mismo campo de altura y las mismas funciones de escalado, así
+que no pueden dar imágenes distintas.
 
 El logo ASCII del banner está incrustado como constante `logoLines`, así que el
 fuente no depende de ningún archivo externo.

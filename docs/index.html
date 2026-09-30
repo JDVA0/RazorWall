@@ -38,16 +38,14 @@ body{
   position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
   display:flex;gap:24px;align-items:flex-end;
   padding:13px 22px 11px;
-  /* sin fondo, los deslizadores se perdian sobre las zonas claras */
-  background:rgba(0,0,0,.55);
-  -webkit-backdrop-filter:blur(22px) saturate(160%);
-  backdrop-filter:blur(22px) saturate(160%);
-  border:1px solid rgba(255,255,255,.10);
+  /* negro opaco: con el fondo traslucido los deslizadores se perdian
+     sobre las zonas claras del wallpaper */
+  background:#000;
+  border:1px solid rgba(255,255,255,.12);
   border-radius:16px;
-  box-shadow:0 10px 34px rgba(0,0,0,.4);
-  opacity:.86;transition:opacity .3s ease;
+  box-shadow:0 10px 34px rgba(0,0,0,.5);
 }
-#bar:hover,#bar:focus-within{opacity:1}
+#bar:hover,#bar:focus-within{border-color:rgba(255,255,255,.22)}
 .ctl{display:flex;flex-direction:column;gap:8px;width:104px}
 .ctl label{
   font-size:9px;letter-spacing:.14em;text-transform:uppercase;
@@ -72,15 +70,13 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
 #hint{
   position:fixed;left:50%;bottom:104px;transform:translateX(-50%);
   padding:7px 14px;border-radius:999px;
-  background:rgba(0,0,0,.5);
-  -webkit-backdrop-filter:blur(18px);
-  backdrop-filter:blur(18px);
-  border:1px solid rgba(255,255,255,.08);
+  background:#000;
+  border:1px solid rgba(255,255,255,.12);
   font-size:10px;letter-spacing:.18em;text-transform:uppercase;
   white-space:nowrap;opacity:0;pointer-events:none;
   transition:opacity .6s ease;
 }
-#hint.show{opacity:.82}
+#hint.show{opacity:.8}
 #hint i{font-style:normal;opacity:.4;margin:0 .5em}
 
 /* --- aviso grande cuando no hay motor --- */
@@ -180,7 +176,9 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
   }
 
   // --- pintado ----------------------------------------------------------
-  var url = null, name = "razorwall.png";
+  var gen = 0;              // contador para abandonar renders viejos
+  var descargable = false;  // hay una imagen completa lista
+  var name = "razorwall.png";
 
   function place(){
     var over = (st.zoom - 1) * window.innerWidth / 2;
@@ -191,28 +189,58 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
       "translate(-50%,-50%) translate(" + st.x + "px," + st.y + "px) scale(" + st.zoom + ")";
   }
 
-  function draw(){
-    place();
-    if(!window.razorwall) return;
-    var bytes = window.razorwall.render({
+  function opciones(){
+    return {
       seed: st.seed, theme: st.theme, levels: st.levels,
       pixels: st.pixels, width: w.width, height: w.height,
       mirror: st.mirror, smooth: st.smooth
-    });
-    if(!bytes) return;
-    var blob = new Blob([bytes], {type:"image/png"});
-    var next = URL.createObjectURL(blob);
-    var img = new Image();
-    img.onload = function(){
-      ctx.drawImage(img, 0, 0, w.width, w.height);
-      if(url) URL.revokeObjectURL(url);
-      url = next;
-      name = "razorwall-" + st.theme + "-" + st.seed + "-" +
-             w.width + "x" + w.height + ".png";
-      w.classList.add("on");
     };
-    img.onerror = function(){ URL.revokeObjectURL(next); };
-    img.src = next;
+  }
+
+  function frame(){
+    return new Promise(function(r){ requestAnimationFrame(function(){ r(); }); });
+  }
+
+  // Dibuja el fondo por franjas, cediendo el hilo entre una y otra. Asi se
+  // ve como se forma en vez de aparecer de golpe, y la pagina no se queda
+  // congelada mientras el motor trabaja.
+  async function draw(){
+    if(!window.razorwall) return;
+    var mine = ++gen;
+    descargable = false;
+
+    var info = window.razorwall.begin(opciones());
+    if(!info) return;
+    place();
+
+    // 1. campo de altura a trozos, para no bloquear el navegador
+    var paso = Math.max(1, Math.ceil(info.gridH / 14));
+    var filas = 0;
+    while(filas < info.gridH){
+      if(mine !== gen) return;          // hubo otro render mientras
+      filas = window.razorwall.step(paso);
+      await frame();
+    }
+
+    // 2. franjas horizontales, pintando cada una en cuanto sale
+    var franjas = 9;
+    var alto = Math.ceil(info.height / franjas);
+    for(var y = 0; y < info.height; y += alto){
+      if(mine !== gen) return;
+      var y1 = Math.min(info.height, y + alto);
+      var rgba = window.razorwall.band(y, y1);
+      if(!rgba) return;
+      var img = new ImageData(new Uint8ClampedArray(rgba.buffer, rgba.byteOffset,
+                                                    rgba.byteLength), info.width, y1 - y);
+      ctx.putImageData(img, 0, y);
+      w.classList.add("on");
+      await frame();
+    }
+
+    if(mine !== gen) return;
+    descargable = true;
+    name = "razorwall-" + info.theme + "-" + st.seed + "-" +
+           info.width + "x" + info.height + ".png";
   }
 
   var queued = false;
@@ -232,11 +260,18 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
     schedule();
   }
   function save(){
-    if(!url) return;
-    var a = document.createElement("a");
-    a.href = url; a.download = name;
-    document.body.appendChild(a); a.click(); a.remove();
-    say("guardado");
+    if(!descargable) return;
+    // El lienzo ya tiene la imagen completa, asi que no hace falta volver a
+    // generar nada para descargarla: se exporta lo que hay pintado.
+    w.toBlob(function(blob){
+      if(!blob) return;
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+      say("guardado");
+    }, "image/png");
   }
   function say(t){
     hint.textContent = t;
