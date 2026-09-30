@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>RazorWall</title>
+<title>Razor</title>
 <meta name="description" content="Wallpapers pixel art con ruido Perlin, generados en tu navegador.">
 <meta name="theme-color" content="#000000">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23000'/><g fill='%238B3FD4'><rect x='6' y='7' width='5' height='5'/><rect x='14' y='7' width='5' height='5'/><rect x='22' y='7' width='4' height='5'/><rect x='6' y='15' width='5' height='5'/><rect x='14' y='15' width='5' height='5' fill='%23C07BF0'/><rect x='22' y='15' width='4' height='5'/><rect x='6' y='23' width='5' height='4'/><rect x='14' y='23' width='5' height='4'/><rect x='22' y='23' width='4' height='4' fill='%23E9D5FF'/></g></svg>">
@@ -66,6 +66,17 @@ input[type=range]::-moz-range-thumb{
 }
 input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border-radius:2px}
 
+/* --- marca, en una esquina y sin estorbar --- */
+#mark{
+  position:fixed;left:22px;top:20px;width:104px;
+  opacity:.5;pointer-events:none;   /* el clic pasa de largo al fondo */
+  /* el logo es blanco y el fondo puede ser casi blanco: una sombra suave
+     le da cuerpo sin necesidad de un recuadro detrás */
+  filter:drop-shadow(0 1px 3px rgba(0,0,0,.7));
+  transition:opacity .35s ease;
+}
+#mark:hover{opacity:.9}
+
 /* --- pista de uso --- */
 #hint{
   position:fixed;left:50%;bottom:104px;transform:translateX(-50%);
@@ -98,6 +109,8 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
 <body>
 
 <div id="stage"><canvas id="w"></canvas></div>
+
+<img id="mark" src="logo.svg" alt="" width="104" height="30">
 
 <div id="hint">
   <i>·</i>clic <i>·</i>espacio <i>·</i>arrastra <i>·</i>s guardar
@@ -178,7 +191,7 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
   // --- pintado ----------------------------------------------------------
   var gen = 0;              // contador para abandonar renders viejos
   var descargable = false;  // hay una imagen completa lista
-  var name = "razorwall.png";
+  var name = "razor.png";
 
   function place(){
     var over = (st.zoom - 1) * window.innerWidth / 2;
@@ -205,11 +218,11 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
   // ve como se forma en vez de aparecer de golpe, y la pagina no se queda
   // congelada mientras el motor trabaja.
   async function draw(){
-    if(!window.razorwall) return;
+    if(!window.razor) return;
     var mine = ++gen;
     descargable = false;
 
-    var info = window.razorwall.begin(opciones());
+    var info = window.razor.begin(opciones());
     if(!info) return;
     place();
 
@@ -218,7 +231,7 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
     var filas = 0;
     while(filas < info.gridH){
       if(mine !== gen) return;          // hubo otro render mientras
-      filas = window.razorwall.step(paso);
+      filas = window.razor.step(paso);
       await frame();
     }
 
@@ -228,7 +241,7 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
     for(var y = 0; y < info.height; y += alto){
       if(mine !== gen) return;
       var y1 = Math.min(info.height, y + alto);
-      var rgba = window.razorwall.band(y, y1);
+      var rgba = window.razor.band(y, y1);
       if(!rgba) return;
       var img = new ImageData(new Uint8ClampedArray(rgba.buffer, rgba.byteOffset,
                                                     rgba.byteLength), info.width, y1 - y);
@@ -239,7 +252,7 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
 
     if(mine !== gen) return;
     descargable = true;
-    name = "razorwall-" + info.theme + "-" + st.seed + "-" +
+    name = "razor-" + info.theme + "-" + st.seed + "-" +
            info.width + "x" + info.height + ".png";
   }
 
@@ -375,7 +388,7 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
     hint.style.display = "none";
   }
 
-  window.onRazorwallReady = function(){
+  window.onRazorReady = function(){
     start();
     window.addEventListener("load", function(){ fit(); draw(); });
   };
@@ -393,16 +406,16 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
           "doble clic en el archivo.");
   } else {
     var go = new Go();
-    fetch("razorwall.wasm")
+    fetch("razor.wasm")
       .then(function(r){
-        if(!r.ok) throw new Error("razorwall.wasm devolvió " + r.status);
+        if(!r.ok) throw new Error("razor.wasm devolvió " + r.status);
         return r.arrayBuffer();
       })
       .then(function(b){ return WebAssembly.instantiate(b, go.importObject); })
       .then(function(res){ go.run(res.instance).catch(function(){}); })
       .catch(function(e){
         fatal("No se pudo cargar el motor", String(e && e.message ? e.message : e));
-        console.error("razorwall:", e);
+        console.error("razor:", e);
       });
   }
 })();

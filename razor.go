@@ -1,6 +1,6 @@
 //go:build !js
 
-// RazorWall: generador de wallpapers pixel art con ruido Perlin.
+// Razor: generador de wallpapers pixel art con ruido Perlin.
 //
 // La fecha se convierte en semilla, asi que cada dia produce un fondo
 // distinto y cualquier dia pasado se puede regenerar con --date.
@@ -258,7 +258,7 @@ func writableDir(dirs ...string) string {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			continue
 		}
-		probe := filepath.Join(d, ".razorwall-write-test")
+		probe := filepath.Join(d, ".razor-write-test")
 		f, err := os.Create(probe)
 		if err != nil {
 			continue
@@ -276,7 +276,7 @@ func writableDir(dirs ...string) string {
 
 // baseDir decides where the PNG is written.
 //
-// Default is the directory holding the executable: running `razorwall`
+// Default is the directory holding the executable: running `razor`
 // from anywhere drops the wallpaper next to the program instead of
 // scattering files in the working directory. If that location is not
 // writable (a binary installed in /usr/bin, say) it falls back to the
@@ -397,10 +397,10 @@ func levelListText() string {
 	return strings.Join(parts, ", ")
 }
 
-const usage = `razorwall - pixel art wallpapers from Perlin noise
+const usage = `razor - pixel art wallpapers from Perlin noise
 
 Usage:
-  razorwall [options]
+  razor [options]
 
 Run with no arguments to render today's wallpaper next to this binary,
 named YYYY-MM-DD.png. Same day, same picture, every time.
@@ -432,10 +432,10 @@ Levels:  %s
 Themes:  %s
 
 Examples:
-  razorwall --theme volcano --levels retro
-  razorwall --random --preview
-  razorwall --seed 42 --pixels 480
-  razorwall --gallery 8
+  razor --theme volcano --levels retro
+  razor --random --preview
+  razor --seed 42 --pixels 480
+  razor --gallery 8
 `
 
 // printQuickDocs is the no-argument landing page.
@@ -593,7 +593,7 @@ func main() {
 	}
 
 	if opt.showVer {
-		fmt.Printf("RazorWall %s\n", version)
+		fmt.Printf("Razor %s\n", version)
 		return
 	}
 	if opt.list {

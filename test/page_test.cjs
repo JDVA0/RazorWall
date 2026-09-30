@@ -1,9 +1,9 @@
 // Prueba funcional del JavaScript de docs/index.html.
 //
-// El motor WebAssembly es real (docs/razorwall.wasm). Solo el DOM se
+// El motor WebAssembly es real (docs/razor.wasm). Solo el DOM se
 // sustituye por un stub minimo, porque en Node no hay navegador. Asi se
 // comprueba el cableado de la pagina de verdad: que el deslizador, el
-// raton y el teclado lleguen a razorwall.render con lo esperado.
+// raton y el teclado lleguen a razor.render con lo esperado.
 
 const fs = require("fs");
 const path = require("path");
@@ -58,7 +58,7 @@ function makeEl(tag) {
   return el;
 }
 
-const wasmBytes = fs.readFileSync(path.join(ROOT, "docs", "razorwall.wasm"));
+const wasmBytes = fs.readFileSync(path.join(ROOT, "docs", "razor.wasm"));
 
 const canvas = makeEl("canvas");
 const slider = makeEl("input");
@@ -129,24 +129,24 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const { instance } = await WebAssembly.instantiate(wasmBytes, go.importObject);
   go.run(instance).catch(() => {});
   await sleep(150);
-  check("window.razorwall registrado", typeof sandbox.razorwall === "object");
+  check("window.razor registrado", typeof sandbox.razor === "object");
 
   const llamadas = [];
-  sandbox._realRender = sandbox.razorwall.render;
-  sandbox.razorwall.render = (o) => { llamadas.push(o); return new Uint8Array(8); };
+  sandbox._realRender = sandbox.razor.render;
+  sandbox.razor.render = (o) => { llamadas.push(o); return new Uint8Array(8); };
 
   // El camino progresivo se comprueba aparte, en las pruebas de Go y del
   // wasm. Aqui solo hace falta que la pagina lo invoque bien, asi que se
   // sustituye por una version rapida que registra las llamadas.
   sandbox._bands = [];
-  sandbox.razorwall.begin = (o) => {
+  sandbox.razor.begin = (o) => {
     llamadas.push(o);
     sandbox._bands = [];          // solo interesan las franjas del ultimo render
     return { gridH: 21, width: 320, height: 180, theme: o.theme || "island" };
   };
   let _rows = 0;
-  sandbox.razorwall.step = (n) => { _rows = Math.min(21, _rows + n); return _rows; };
-  sandbox.razorwall.band = (y0, y1) => {
+  sandbox.razor.step = (n) => { _rows = Math.min(21, _rows + n); return _rows; };
+  sandbox.razor.band = (y0, y1) => {
     sandbox._bands.push([y0, y1]);
     const b = new Uint8Array(320 * (y1 - y0) * 4);
     b.fill(200);
@@ -155,7 +155,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   vm.runInContext(code, sandbox, { filename: "index.html<script>" });
   // arranque: el script llama fit() y prepara el fetch
-  sandbox.onRazorwallReady();
+  sandbox.onRazorReady();
   await sleep(60);
 
   check("el lienzo se dimensiona", canvas.width > 0 && canvas.height > 0,
@@ -208,7 +208,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     ini.seed + " -> " + tras.seed);
   check("el nuevo fondo tira el tema o los niveles",
     tras.theme !== ini.theme || tras.levels !== ini.levels);
-  check("el tema nuevo existe", sandbox.razorwall.themes.indexOf(tras.theme) >= 0,
+  check("el tema nuevo existe", sandbox.razor.themes.indexOf(tras.theme) >= 0,
     tras.theme);
   check("los niveles son validos", [64, 32, 16, 8, 4].indexOf(tras.levels) >= 0,
     String(tras.levels));

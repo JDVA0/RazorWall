@@ -33,7 +33,7 @@ function cliRender(o, outPath) {
   ];
   if (o.mirror) args.push("--mirror");
   if (o.smooth) args.push("--smooth");
-  execFileSync(path.join(ROOT, "razorwall"), args, { stdio: "ignore" });
+  execFileSync(path.join(ROOT, "razor"), args, { stdio: "ignore" });
   return fs.readFileSync(outPath);
 }
 
@@ -130,7 +130,7 @@ function decodificarPNG(buf) {
 
 (async () => {
   const go = new Go();
-  const bytes = fs.readFileSync(path.join(DOCS, "razorwall.wasm"));
+  const bytes = fs.readFileSync(path.join(DOCS, "razor.wasm"));
   const { instance } = await WebAssembly.instantiate(bytes, go.importObject);
 
   // go.run() no resuelve nunca porque main bloquea con select{}; hay que
@@ -138,9 +138,9 @@ function decodificarPNG(buf) {
   go.run(instance).catch(() => {});
   await new Promise((r) => setTimeout(r, 200));
 
-  const rw = globalThis.razorwall;
+  const rw = globalThis.razor;
   if (!rw || typeof rw.render !== "function") {
-    console.error("FALLO: window.razorwall no se registro");
+    console.error("FALLO: window.razor no se registro");
     process.exit(1);
   }
   console.log("API registrada");

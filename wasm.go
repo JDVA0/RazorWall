@@ -5,7 +5,7 @@
 //
 // Se compila con:
 //
-//	GOOS=js GOARCH=wasm go build -trimpath -ldflags="-s -w" -o docs/razorwall.wasm .
+//	GOOS=js GOARCH=wasm go build -trimpath -ldflags="-s -w" -o docs/razor.wasm .
 //
 // El pegamento con el navegador es docs/wasm_exec.js, que tiene que ser el de
 // la misma versión de Go que compiló el .wasm.
@@ -17,7 +17,7 @@
 //	begin/step/band   el mismo dibujo troceado, para que la página pueda ir
 //	               pintando en vez de quedarse congelada mientras se calcula.
 //
-// La API queda en window.razorwall. Ver docs/index.html.
+// La API queda en window.razor. Ver docs/index.html.
 package main
 
 import (
@@ -151,7 +151,7 @@ func main() {
 		}
 		data, err := renderPNG(o)
 		if err != nil {
-			js.Global().Get("console").Call("error", "razorwall: "+err.Error())
+			js.Global().Get("console").Call("error", "razor: "+err.Error())
 			return js.Undefined()
 		}
 		return toJSBytes(data)
@@ -166,7 +166,7 @@ func main() {
 		spec := specFrom(o)
 		j, err := NewProgressive(spec, newRand(o.seed))
 		if err != nil {
-			js.Global().Get("console").Call("error", "razorwall: "+err.Error())
+			js.Global().Get("console").Call("error", "razor: "+err.Error())
 			return js.Null()
 		}
 		job = j
@@ -204,9 +204,9 @@ func main() {
 	api.Set("bands", toJSArray(bandNames))
 	api.Set("version", js.ValueOf(version))
 
-	js.Global().Set("razorwall", api)
+	js.Global().Set("razor", api)
 
-	if cb := js.Global().Get("onRazorwallReady"); cb.Type() == js.TypeFunction {
+	if cb := js.Global().Get("onRazorReady"); cb.Type() == js.TypeFunction {
 		cb.Invoke()
 	}
 

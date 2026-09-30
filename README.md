@@ -1,15 +1,9 @@
-# RazorWall
-
-```
-:::::::..    :::.     :::::::::    ...    :::::::..
-;;;;``;;;;   ;;`;;    '`````;;; .;;;;;;;. ;;;;``;;;;
- [[[,/[[['  ,[[ '[[,      .n[[',[[     \[[,[[[,/[[['
- $$$$$$c   c$$$cc$$$c   ,$$P"  $$$,     $$$$$$$$$c
- 888b "88bo,888   888,,888bo,_ "888,_ _,88P888b "88bo,
- MMMM   "W" YMM   ""`  `""*UMM   "YMMMMMP" MMMM   "W"
-```
+<img src="logo.svg" width="420" alt="Razor">
 
 Generador de wallpapers pixel art a partir de ruido Perlin.
+
+> La herramienta se llama **Razor** (`razor`). Este repositorio es
+> **RazorWall**, el nombre del proyecto.
 
 Cada día produce un fondo distinto usando la fecha como semilla, así que el
 escritorio no se repite. El fondo de cualquier día pasado se puede volver a
@@ -20,7 +14,7 @@ librería estándar, sin Python ni ImageMagick. El mismo motor también compila
 para WebAssembly, así que hay una [versión web](#en-el-navegador) que no
 necesita instalar nada.
 
-![Fondo generado por RazorWall](images/hero.png)
+![Fondo generado por Razor](images/hero.png)
 
 ## Índice
 
@@ -49,7 +43,7 @@ Requiere Go 1.21 o superior.
 ```bash
 git clone https://github.com/JDVA0/RazorWall.git
 cd RazorWall
-go build -ldflags="-s -w" -o razorwall .
+go build -ldflags="-s -w" -o razor .
 ```
 
 El binario resultante ocupa unos 2 MB. Para probarlo sin instalar nada,
@@ -61,14 +55,14 @@ go run . --theme volcano
 
 ## Uso rápido
 
-Sin argumentos, `razorwall` **muestra la ayuda y no genera nada**. En cuanto le
+Sin argumentos, `razor` **muestra la ayuda y no genera nada**. En cuanto le
 pasas alguna opción, dibuja el fondo:
 
 ```bash
-./razorwall                        # muestra la ayuda
-./razorwall --theme neon           # el fondo de hoy en tema neón
-./razorwall --random --preview     # algo distinto cada vez, en la terminal
-./razorwall --gallery 8            # ocho variaciones para elegir
+./razor                        # muestra la ayuda
+./razor --theme neon           # el fondo de hoy en tema neón
+./razor --random --preview     # algo distinto cada vez, en la terminal
+./razor --gallery 8            # ocho variaciones para elegir
 ```
 
 La imagen se guarda **en la carpeta donde está el binario**, con el nombre de la
@@ -104,19 +98,19 @@ Las opciones admiten las dos formas: `--theme volcano` y `--theme=volcano`.
 
 ```bash
 # Tema cálido y bien saturado
-./razorwall --theme volcano --levels retro
+./razor --theme volcano --levels retro
 
 # Sorpresa: tema, tamaño, rejilla y resolución al azar, visto en la terminal
-./razorwall --random --preview
+./razor --random --preview
 
 # Un fondo concreto y reproducible
-./razorwall --seed 42 --theme island --pixels 480
+./razor --seed 42 --theme island --pixels 480
 
 # Composición simétrica a 1440p
-./razorwall --mirror --quality high --out /tmp/paisaje.png
+./razor --mirror --quality high --out /tmp/paisaje.png
 
 # Ocho candidatos para elegir el mejor
-./razorwall --gallery 8
+./razor --gallery 8
 ```
 
 ### Cómo se comporta `--random`
@@ -145,7 +139,7 @@ completo.
 ### Temas
 
 Cada tema define su propia rampa de bioma, del abismo a la cumbre. Se
-generan con `./razorwall --theme <tema>`.
+generan con `./razor --theme <tema>`.
 
 <table>
 <tr>
@@ -354,7 +348,7 @@ sería distinto del que se guarda.
 ### Compilar la versión web
 
 ```bash
-GOOS=js GOARCH=wasm go build -trimpath -ldflags="-s -w" -o docs/razorwall.wasm .
+GOOS=js GOARCH=wasm go build -trimpath -ldflags="-s -w" -o docs/razor.wasm .
 ```
 
 `wasm_exec.js` va versionado en `docs/` y **no hay que regenerarlo**: es el
@@ -378,7 +372,7 @@ abres en local y ves el aviso, es por eso.
 
 ## Poner el fondo como wallpaper
 
-`razorwall` no toca la configuración de tu escritorio: genera la imagen y
+`razor` no toca la configuración de tu escritorio: genera la imagen y
 nada más. Eso es deliberado, para que la misma herramienta sirva en cualquier
 sistema sin inventariar gestores de ventanas.
 
@@ -398,11 +392,11 @@ xfconf-query -c xfce4-desktop -p /backdrop/workspace0/last-image -s "$PWD/2026-0
 feh --bg-fill 2026-09-30.png
 ```
 
-Si prefieres automatizarlo, un `cron` diario que ejecute `razorwall` y tu
+Si prefieres automatizarlo, un `cron` diario que ejecute `razor` y tu
 comando de escritorio es suficiente:
 
 ```cron
-17 6 * * * cd ~/RazorWall && ./razorwall --random && feh --bg-fill "$(ls -t *.png | head -1)"
+17 6 * * * cd ~/RazorWall && ./razor --random && feh --bg-fill "$(ls -t *.png | head -1)"
 ```
 
 ## Cómo funciona
@@ -442,7 +436,7 @@ negro.
 ### Compilar y probar
 
 ```bash
-go build -o razorwall .
+go build -o razor .
 go test ./...                     # núcleo: determinismo, ruido, escalado, CLI
 node test/wasm_test.cjs           # el wasm frente a la CLI, y las franjas
 node test/page_test.cjs           # el JS de docs/index.html con un DOM simulado
@@ -460,7 +454,7 @@ con la del binario para los mismos parámetros: **tienen que coincidir byte a
 byte**. Si divergen, la web y la CLI ya no son el mismo generador.
 
 `page_test.cjs` ejecuta el script real de la página contra un DOM mínimo y
-comprueba que el cableado funciona: que cada control llega a `razorwall.render`
+comprueba que el cableado funciona: que cada control llega a `razor.render`
 con lo que corresponde, que arrastrar mueve sin regenerar y que el zoom no
 vuelve a dibujar.
 
@@ -469,11 +463,11 @@ vuelve a dibujar.
 ```
 render.go         núcleo: ruido Perlin, temas, cuantización, escalado y
                   el render progresivo por franjas
-razorwall.go      CLI: banner, lectura de argumentos y escritura de archivos
+razor.go          CLI: banner, lectura de argumentos y escritura de archivos
 wasm.go           bindings para el navegador (syscall/js)
-razorwall_test.go tests del núcleo y de la CLI
+razor_test.go     tests del núcleo y de la CLI
 test/             pruebas del wasm y de la página (Node)
-docs/             la página web y el .wasm compilado
+docs/             la página web, el logo y el .wasm compilado
 images/           capturas del catálogo visual
 ```
 

@@ -1,4 +1,5 @@
-# Binario compilado. Se genera con: go build -o razorwall .
+# Binario compilado. Se genera con: go build -o razor .
+/razor
 /razorwall
 
 # Wallpapers generados al ejecutar el programa.
