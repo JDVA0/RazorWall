@@ -39,10 +39,11 @@ type jsOptions struct {
 	height int
 	mirror bool
 	smooth bool
+	noise  int
 }
 
 func readOptions(v js.Value) jsOptions {
-	o := jsOptions{levels: 16, pixels: 320, width: 1920, height: 1080}
+	o := jsOptions{levels: 16, pixels: 320, width: 1920, height: 1080, noise: -1}
 	if v.IsUndefined() || v.IsNull() {
 		return o
 	}
@@ -79,6 +80,9 @@ func readOptions(v js.Value) jsOptions {
 	if !get("smooth").IsUndefined() {
 		o.smooth = get("smooth").Bool()
 	}
+	if !get("noise").IsUndefined() {
+		o.noise = get("noise").Int()
+	}
 	return o
 }
 
@@ -100,6 +104,7 @@ func specFrom(o jsOptions) Spec {
 		Height: o.height,
 		Mirror: o.mirror,
 		Smooth: o.smooth,
+		Noise:  o.noise,
 	}
 }
 

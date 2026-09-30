@@ -228,6 +228,7 @@ type options struct {
 	smooth   bool
 	random   bool
 	mirror   bool
+	noise    int
 	preview  bool
 	gallery  int
 	list     bool
@@ -326,7 +327,7 @@ func generate(opt options, seed int64, out string) (string, float64, error) {
 	if opt.preview {
 		// the preview draws the low-res grid, so render it separately
 		// instead of paying for the full-size upscale twice
-		printPreview(render(pw, ph, seed, rng, theme, levels, opt.mirror), 72)
+		printPreview(render(pw, ph, seed, rng, theme, levels, opt.mirror, opt.noise), 72)
 	}
 
 	img, err := spec.Render(rng)
@@ -363,6 +364,7 @@ func (o options) spec(seed int64, levels int) Spec {
 		Height: o.height,
 		Mirror: o.mirror,
 		Smooth: o.smooth,
+		Noise:  o.noise,
 	}
 }
 
@@ -414,6 +416,7 @@ Options:
       --size WxH         final image size (default 1920x1080)
       --quality LEVEL    fast | normal | high
       --mirror           mirror the terrain horizontally
+      --noise N          terrain scale, 0-100 (default: from the seed)
   -p, --preview          also draw it in the terminal
   -N, --seed N           manual seed (default: today's date)
       --date YYYY-MM-DD  pretend it is another day
@@ -481,6 +484,7 @@ func main() {
 		format: "png",
 		width:  defaultSize.w,
 		height: defaultSize.h,
+		noise:  -1, // automatico: la escala la sortea la semilla
 	}
 	// Which knobs the user set explicitly; --random only rolls the rest.
 	var hasExplicitLevels, hasExplicitPixels, hasExplicitSize bool
@@ -564,6 +568,12 @@ func main() {
 			opt.smooth = true
 		case "--mirror":
 			opt.mirror = true
+		case "--noise":
+			n, err := strconv.Atoi(take(&i))
+			if err != nil || n < 0 || n > 100 {
+				fail("--noise needs a number between 0 and 100")
+			}
+			opt.noise = n
 		case "-p", "--preview":
 			opt.preview = true
 		case "-r", "--random":
@@ -649,6 +659,9 @@ func main() {
 			sizes := []outputSize{{1280, 720}, {1920, 1080}, {2560, 1440}, {3840, 2160}}
 			s := sizes[roll.Intn(len(sizes))]
 			opt.width, opt.height = s.w, s.h
+		}
+		if opt.noise < 0 {
+			opt.noise = roll.Intn(101)
 		}
 	} else if opt.theme == "" || opt.theme == "random" && !opt.hasSeed {
 		// Daily pick: cycle through themes but never repeat yesterday's.

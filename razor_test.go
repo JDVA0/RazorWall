@@ -4,6 +4,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"fmt"
 	"image"
 	"image/png"
 	"math"
@@ -19,7 +21,7 @@ import (
 func renderBytes(t *testing.T, seed int64, theme string, levels int, mirror bool) []byte {
 	t.Helper()
 	rng := rand.New(rand.NewSource(seed))
-	grid := render(160, 90, seed, rng, theme, levels, mirror)
+	grid := render(160, 90, seed, rng, theme, levels, mirror, -1)
 
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, grid); err != nil {
@@ -131,7 +133,7 @@ func TestSampleRampDevuelveColorValido(t *testing.T) {
 
 func TestEscaladoConservaLasDimensiones(t *testing.T) {
 	rng := rand.New(rand.NewSource(1))
-	grid := render(160, 90, 1, rng, "island", 16, false)
+	grid := render(160, 90, 1, rng, "island", 16, false, -1)
 
 	for _, sz := range []struct{ w, h int }{{1920, 1080}, {800, 600}, {640, 360}} {
 		got := scalePointy(grid, sz.w, sz.h)
@@ -147,7 +149,7 @@ func TestEscaladoConservaLasDimensiones(t *testing.T) {
 // un rectangulo uniforme en la salida.
 func TestEscaladoPointyDuplicaBloquesExactos(t *testing.T) {
 	rng := rand.New(rand.NewSource(7))
-	grid := render(160, 90, 7, rng, "neon", 16, false)
+	grid := render(160, 90, 7, rng, "neon", 16, false, -1)
 	out := scalePointy(grid, 320, 180) // factor 2 exacto
 
 	for y := 0; y < 180; y++ {
@@ -287,10 +289,65 @@ func TestRenderProgresivoToleraBandasImprobables(t *testing.T) {
 	}
 }
 
+func TestElRuidoCambiaLaEscalaDelTerreno(t *testing.T) {
+	// ruido automatico (negativo) no debe fijarse a ningun valor
+	auto := Spec{Seed: 42, Theme: "island", Levels: 16, Pixels: 160,
+		Width: 640, Height: 360, Noise: -1}
+	a, err := auto.Render(rand.New(rand.NewSource(42)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := auto.Render(rand.New(rand.NewSource(42)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(a.Pix, b.Pix) {
+		t.Error("con ruido automatico dos renders de la misma semilla difieren")
+	}
+
+	// cada valor fijo tiene que dar algo distinto
+	vistos := map[int]string{}
+	for _, n := range []int{0, 50, 100} {
+		s := Spec{Seed: 42, Theme: "island", Levels: 16, Pixels: 160,
+			Width: 640, Height: 360, Noise: n}
+		img, err := s.Render(rand.New(rand.NewSource(42)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		h := sha256.Sum256(img.Pix)
+		vistos[n] = fmt.Sprintf("%x", h[:8])
+		// y tiene que ser reproducible
+		img2, _ := s.Render(rand.New(rand.NewSource(42)))
+		if !bytes.Equal(img.Pix, img2.Pix) {
+			t.Errorf("ruido %d: dos renders difieren", n)
+		}
+	}
+	if vistos[0] == vistos[50] || vistos[50] == vistos[100] {
+		t.Error("el ruido no cambia la imagen")
+	}
+}
+
+func TestRuidoFueraDeRangoSeAjusta(t *testing.T) {
+	// 500 debe comportarse como 100, no reventar
+	a, err := Spec{Seed: 1, Theme: "neon", Levels: 16, Pixels: 120,
+		Width: 480, Height: 270, Noise: 500}.Render(rand.New(rand.NewSource(1)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := Spec{Seed: 1, Theme: "neon", Levels: 16, Pixels: 120,
+		Width: 480, Height: 270, Noise: 100}.Render(rand.New(rand.NewSource(1)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(a.Pix, b.Pix) {
+		t.Error("un ruido fuera de rango deberia equivale al maximo")
+	}
+}
+
 func TestGuardarPNGRespetaElTamanoPedido(t *testing.T) {
 	dir := t.TempDir()
 	rng := rand.New(rand.NewSource(3))
-	grid := render(64, 36, 3, rng, "desert", 8, false)
+	grid := render(64, 36, 3, rng, "desert", 8, false, -1)
 	out := filepath.Join(dir, "test.png")
 
 	if err := save(grid, out, "png"); err != nil {
@@ -343,7 +400,7 @@ func TestParseSize(t *testing.T) {
 func TestTodosLosNivelesProducenImagenValida(t *testing.T) {
 	for name := range levelNames {
 		rng := rand.New(rand.NewSource(5))
-		grid := render(80, 45, 5, rng, "island", levelNames[name], false)
+		grid := render(80, 45, 5, rng, "island", levelNames[name], false, -1)
 		if grid.Bounds().Dx() != 80 || grid.Bounds().Dy() != 45 {
 			t.Fatalf("nivel %s: rejilla con tamaño inesperado", name)
 		}
@@ -359,7 +416,7 @@ func TestTodosLosNivelesProducenImagenValida(t *testing.T) {
 func TestImagenTieneVariacionDeColor(t *testing.T) {
 	// un render completamente plano seria un bug silencioso
 	rng := rand.New(rand.NewSource(11))
-	grid := render(160, 90, 11, rng, "island", 16, false)
+	grid := render(160, 90, 11, rng, "island", 16, false, -1)
 	vistos := map[uint32]bool{}
 	for i := 0; i < len(grid.Pix); i += 4 {
 		vistos[uint32(grid.Pix[i])<<16|uint32(grid.Pix[i+1])<<8|uint32(grid.Pix[i+2])] = true

@@ -258,8 +258,13 @@ type fieldParams struct {
 	seedOff int64
 }
 
-func newFieldParams(rng *rand.Rand, seed int64) fieldParams {
-	return fieldParams{
+// noise fija la escala del terreno en 0..100. Negativo significa automatico.
+//
+// Solo se pisa span: asi, al mover el deslizador, cambia el tamano de las
+// formas pero no se reshufflea el resto de parametros, y moverlo no altera
+// nada mas de la imagen.
+func newFieldParams(rng *rand.Rand, seed int64, noise int) fieldParams {
+	fp := fieldParams{
 		octaves: 4 + rng.Intn(4),           // 4..7
 		gain:    0.45 + rng.Float64()*0.13, // 0.45..0.58
 		// unidades de ruido a lo ancho: 2-5 da islas reconocibles
@@ -269,11 +274,19 @@ func newFieldParams(rng *rand.Rand, seed int64) fieldParams {
 		oy:      rng.Float64() * 400,
 		seedOff: seed + int64(rng.Intn(10000)),
 	}
+	if noise >= 0 {
+		if noise > 100 {
+			noise = 100
+		}
+		// 1.1 da islas grandes y tranquilas; 6.5 un terreno muy picado
+		fp.span = 1.1 + float64(noise)/100*5.4
+	}
+	return fp
 }
 
 // heightmap genera el campo 0..1 con octavas de Perlin y domain warping.
-func heightmap(w, h int, seed int64, rng *rand.Rand) []float64 {
-	fp := newFieldParams(rng, seed)
+func heightmap(w, h int, seed int64, rng *rand.Rand, noise int) []float64 {
+	fp := newFieldParams(rng, seed, noise)
 	out := make([]float64, w*h)
 	fp.fill(out, w, h, 0, h)
 	normalize(out)
@@ -347,8 +360,8 @@ func normalize(v []float64) {
 // ---------------------------------------------------------------------------
 
 // render dibuja el campo de altura como pixel art en la rejilla w x h.
-func render(w, h int, seed int64, rng *rand.Rand, theme string, levels int, mirror bool) *image.RGBA {
-	return colorsFromHeights(heightmap(w, h, seed, rng), w, h, theme, levels, mirror)
+func render(w, h int, seed int64, rng *rand.Rand, theme string, levels int, mirror bool, noise int) *image.RGBA {
+	return colorsFromHeights(heightmap(w, h, seed, rng, noise), w, h, theme, levels, mirror)
 }
 
 // colorsFromHeights mapea un campo de altura ya normalizado a pixeles de
@@ -416,6 +429,9 @@ type Spec struct {
 	Height int
 	Mirror bool
 	Smooth bool
+	// Noise fija la escala del terreno de 0 a 100. Negativo = automatico,
+	// que es lo que se sortea a partir de la semilla.
+	Noise int
 }
 
 // GridSize returns the size of the pixel grid for a spec, keeping the
@@ -476,7 +492,7 @@ func (s Spec) Render(rng *rand.Rand) (*image.RGBA, error) {
 		levels = 16
 	}
 	pw, ph := s.GridSize()
-	grid := render(pw, ph, s.Seed, rng, theme, levels, s.Mirror)
+	grid := render(pw, ph, s.Seed, rng, theme, levels, s.Mirror, s.Noise)
 
 	if s.Smooth {
 		return scaleBilinear(grid, s.Width, s.Height), nil
@@ -522,7 +538,7 @@ func NewProgressive(spec Spec, rng *rand.Rand) (*Progressive, error) {
 	}
 	pw, ph := spec.GridSize()
 	return &Progressive{
-		fp:      newFieldParams(rng, spec.Seed),
+		fp:      newFieldParams(rng, spec.Seed, spec.Noise),
 		heights: make([]float64, pw*ph),
 		pw:      pw,
 		ph:      ph,

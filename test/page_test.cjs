@@ -75,8 +75,11 @@ const fatalP = makeEl("p");
 class BlobStub {
   constructor(p) { this.size = p[0]?.length || 0; }
 }
+const s4 = makeEl("input");
+s4.value = "40";
 const byId = {
-  stage: makeEl("div"), w: canvas, bar: bar, hint: hint, s1: slider, s2: s2, s3: s3,
+  stage: makeEl("div"), w: canvas, bar: bar, hint: hint,
+  s1: slider, s2: s2, s3: s3, s4: s4,
   fatal: fatal, "fatal-t": fatalT, "fatal-p": fatalP,
 };
 
@@ -165,6 +168,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const ini = llamadas[llamadas.length - 1];
   check("el fondo de hoy usa una semilla con forma de fecha",
     String(ini.seed).length === 8, "seed: " + ini.seed);
+  check("el primer render lleva el ruido por defecto",
+    ini.noise === 40, String(ini.noise));
   check("la pista de uso aparece", hint._cls.has("show"));
 
   // --- deslizador ---
@@ -184,6 +189,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   check("el deslizador de niveles cambia los tonos",
     llamadas.length > bN && llamadas[llamadas.length - 1].levels === 4,
     String(llamadas[llamadas.length - 1].levels));
+
+  // --- deslizador de ruido ---
+  s4.value = "85";
+  s4.fire("input");
+  await sleep(40);
+  check("el deslizador de ruido llega al motor",
+    llamadas[llamadas.length - 1].noise === 85,
+    String(llamadas[llamadas.length - 1].noise));
 
   // --- zoom: solo transform, no vuelve a renderizar ---
   const antesZoom = llamadas.length;

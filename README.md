@@ -25,6 +25,7 @@ necesita instalar nada.
   - [Temas](#temas)
   - [Niveles de color](#niveles-de-color)
   - [Resolución de la rejilla](#resolución-de-la-rejilla)
+  - [Escala del ruido](#escala-del-ruido)
   - [Proporción de la imagen](#proporción-de-la-imagen)
   - [Simetría](#simetría)
   - [Pixel art frente a interpolado](#pixel-art-frente-a-interpolado)
@@ -79,6 +80,7 @@ fecha (`2026-09-30.png`), sin importar desde qué directorio lo ejecutes. Usa
 | `--size` | Tamaño final de la imagen, p. ej. `2560x1440` (por defecto `1920x1080`) |
 | `--quality` | Atajo de resolución: `fast` 1280x720, `normal` 1920x1080, `high` 2560x1440 |
 | `--mirror` | Refleja el terreno en horizontal |
+| `--noise` | Escala del terreno, de 0 a 100. Por defecto la sortea la semilla |
 | `-p`, `--preview` | Dibuja también el resultado en la terminal, a color |
 | `-r`, `--random` | Tira tema, niveles, rejilla y resolución al azar |
 | `-N`, `--seed` | Semilla manual (por defecto, la fecha del día) |
@@ -214,6 +216,24 @@ la rejilla de 120 a 960 multiplica el coste por unas cinco veces (0,05 s →
 0,24 s), mientras que pasar la salida de 1920x1080 a 2560x1440 apenas lo
 altera, porque el cálculo ocurre siempre en la rejilla pequeña.
 
+### Escala del ruido
+
+`--noise` fija el tamaño de las formas del terreno. En `0` salen islas grandes y
+tranquilas; en `100`, un terreno muy picado. Sin el flag, cada día elige uno
+distinto a partir de la semilla, así que el mismo día siempre da lo mismo.
+
+<table>
+<tr>
+<td width="33%"><img src="images/noise/0.png" width="320"><br><sub><b>--noise 0</b> — islas grandes</sub></td>
+<td width="33%"><img src="images/noise/50.png" width="320"><br><sub><b>--noise 50</b> — escala media</sub></td>
+<td width="33%"><img src="images/noise/100.png" width="320"><br><sub><b>--noise 100</b> — muy picado</sub></td>
+</tr>
+</table>
+
+El valor solo sustituye a la escala: el resto de parámetros (cuántas octavas, el
+warping, dónde cae la semilla) sigue viniendo de la semilla, así que mover el
+deslizador no baraja nada más de la imagen.
+
 ### Proporción de la imagen
 
 `--size` acepta cualquier proporción. La rejilla mantiene la relación del
@@ -320,7 +340,7 @@ por abajo, y el resto se hace con el ratón o el teclado.
 </table>
 
 Los deslizadores de abajo controlan los píxeles de la rejilla, los niveles de
-color y el zoom. El zoom no vuelve a generar la imagen: solo la amplía, así que
+color, la escala del ruido y el zoom. El zoom no vuelve a generar la imagen: solo la amplía, así que
 responde al instante.
 
 ### Se ve cómo se forma
@@ -351,20 +371,20 @@ sería distinto del que se guarda.
 GOOS=js GOARCH=wasm go build -trimpath -ldflags="-s -w" -o docs/razor.wasm .
 ```
 
-`wasm_exec.js` va versionado en `docs/` y **no hay que regenerarlo**: es el
-pegamento entre Go y el navegador y tiene que ser de la misma versión de Go que
-compiló el `.wasm`. La ruta depende de la versión (en Go 1.24 y posteriores está
-en `lib/wasm/`, antes en `misc/wasm/`), y por eso la busca el CI en lugar de
-fijarla:
+`wasm_exec.js` va versionado en `docs/` y hay que regenerarlo **a la vez** que
+el `.wasm`: es el pegamento entre Go y el navegador y tiene que ser de la misma
+versión de Go que lo compiló. La ruta cambia según la versión, así que conviene
+buscarla en las dos:
 
 ```bash
+GOOS=js GOARCH=wasm go build -trimpath -ldflags="-s -w" -o docs/razor.wasm .
 for p in lib/wasm misc/wasm; do
   [ -f "$(go env GOROOT)/$p/wasm_exec.js" ] && cp "$(go env GOROOT)/$p/wasm_exec.js" docs/ && break
 done
 ```
 
-Cambiar la versión de Go implica regenerar **los dos** archivos, o la página se
-quedará sin arrancar.
+Si cambias la versión de Go y solo regeneras uno de los dos, la página se queda
+sin arrancar.
 
 La página **necesita servirse por http**, no vale con abrir el archivo a doble
 clic: los navegadores bloquean la lectura de un `.wasm` desde `file://`. Si lo
@@ -479,25 +499,6 @@ que no pueden dar imágenes distintas.
 
 El logo ASCII del banner está incrustado como constante `logoLines`, así que el
 fuente no depende de ningún archivo externo.
-
-### Descargas
-
-Hay binarios para Linux, Windows y macOS en la
-[página de releases](https://github.com/JDVA0/RazorWall/releases). No necesitas
-instalar Go para usarlos.
-
-Los releases los publica un workflow de GitHub Actions
-(`.github/workflows/release.yml`): primero pasa `gofmt`, `go vet` y los tests
-con detector de carreras, luego compila en cada plataforma, comprueba que cada
-binario genera un PNG de verdad, y adjunta los artefactos y sus checksums a la
-etiqueta que pulses.
-
-Para sacar una versión nueva:
-
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
 
 ## Licencia
 

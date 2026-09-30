@@ -180,6 +180,8 @@ function decodificarPNG(buf) {
   // completo, asi que hace falta decodificarlo.
   const CASOS_BANDA = [
     { seed: 20260930, theme: "island", levels: 16, pixels: 160, width: 640, height: 360 },
+    { seed: 20260930, theme: "island", levels: 16, pixels: 160, width: 640, height: 360, noise: 90 },
+    { seed: 11, theme: "jungle", levels: 16, pixels: 120, width: 480, height: 270, noise: 0 },
     { seed: 7, theme: "neon", levels: 4, pixels: 120, width: 480, height: 270 },
     { seed: 99, theme: "volcano", levels: 8, pixels: 160, width: 640, height: 360, mirror: true },
     { seed: 555, theme: "glacier", levels: 32, pixels: 160, width: 640, height: 360, smooth: true },
