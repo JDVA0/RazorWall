@@ -9,82 +9,87 @@
  MMMM   "W" YMM   ""`  `""*UMM   "YMMMMMP" MMMM   "W"
 ```
 
-**Generador de wallpapers pixel art con ruido Perlin.**
+Generador de wallpapers pixel art a partir de ruido Perlin.
 
-Un fondo distinto cada día, derivado de la fecha, para que el escritorio nunca
-se repita. Si te gusta alguno, siempre puedes volver a generarlo.
+Cada día produce un fondo distinto usando la fecha como semilla, así que el
+escritorio no se repite. El fondo de cualquier día pasado se puede volver a
+generar cuando quieras.
 
-Sin dependencias: un solo archivo de Go, un solo binario. No necesita Python,
-ni ImageMagick, ni nada fuera de la stdlib.
+Todo el programa está en Go y no depende de nada: el PNG se escribe con la
+librería estándar, sin Python ni ImageMagick. El mismo motor también compila
+para WebAssembly, así que hay una [versión web](#en-el-navegador) que no
+necesita instalar nada.
 
 ![Fondo generado por RazorWall](images/hero.png)
-
----
 
 ## Índice
 
 - [Instalación](#instalación)
 - [Uso rápido](#uso-rápido)
-- [Todas las opciones](#todas-las-opciones)
+- [Opciones](#opciones)
 - [Catálogo visual](#catálogo-visual)
   - [Temas](#temas)
   - [Niveles de color](#niveles-de-color)
   - [Resolución de la rejilla](#resolución-de-la-rejilla)
+  - [Proporción de la imagen](#proporción-de-la-imagen)
   - [Simetría](#simetría)
-  - [Pixel art vs. interpolado](#pixel-art-vs-interpolado)
+  - [Pixel art frente a interpolado](#pixel-art-frente-a-interpolado)
   - [Modo aleatorio](#modo-aleatorio)
+  - [Galería](#galería)
+- [En el navegador](#en-el-navegador)
+- [Poner el fondo como wallpaper](#poner-el-fondo-como-wallpaper)
 - [Cómo funciona](#cómo-funciona)
-- [Detalles técnicos](#detalles-técnicos)
-
----
+- [Desarrollo](#desarrollo)
+- [Licencia](#licencia)
 
 ## Instalación
 
-Necesitas Go 1.21 o superior.
+Requiere Go 1.21 o superior.
 
 ```bash
-git clone <url-del-repo>
-cd Razor
-go build -ldflags="-s -w" -o razorwall razorwall.go
+git clone https://github.com/JDVA0/RazorWall.git
+cd RazorWall
+go build -ldflags="-s -w" -o razorwall .
 ```
 
-Eso genera un binario de unos 2 MB. También funciona sin compilar:
+El binario resultante ocupa unos 2 MB. Para probarlo sin instalar nada,
+[descarga uno de los binarios](#descargas) o usa `go run`:
 
 ```bash
-go run razorwall.go --theme volcano
+go run . --theme volcano
 ```
 
 ## Uso rápido
 
-Ejecutado sin argumentos, `razorwall` **muestra la documentación y no genera
-nada**. En cuanto le pasas algo, dibuja el fondo y lo guarda.
+Sin argumentos, `razorwall` **muestra la ayuda y no genera nada**. En cuanto le
+pasas alguna opción, dibuja el fondo:
 
 ```bash
-./razorwall                        # imprime la ayuda
+./razorwall                        # muestra la ayuda
 ./razorwall --theme neon           # el fondo de hoy en tema neón
-./razorwall --random --preview     # algo distinto cada vez, visto en la terminal
+./razorwall --random --preview     # algo distinto cada vez, en la terminal
 ./razorwall --gallery 8            # ocho variaciones para elegir
 ```
 
-El PNG se escribe **junto al binario**, con el nombre de la fecha
-(`2026-09-30.png`), sin importar desde qué directorio lo ejecutes. Con
-`--dir` o `--out` decides tú dónde va.
+La imagen se guarda **en la carpeta donde está el binario**, con el nombre de la
+fecha (`2026-09-30.png`), sin importar desde qué directorio lo ejecutes. Usa
+`--dir` o `--out` si quieres otro sitio.
 
-## Todas las opciones
+## Opciones
 
 | Opción | Qué hace |
 | --- | --- |
-| `-t`, `--theme` | Tema de color: `island`, `volcano`, `desert`, `glacier`, `jungle`, `neon`, o `random` |
+| `-t`, `--theme` | Tema de color: `island`, `volcano`, `desert`, `glacier`, `jungle`, `neon` o `random` |
 | `-x`, `--pixels` | Ancho de la rejilla pixelada. Cuanto menor, bloques más grandes (por defecto `320`) |
 | `--levels` | Tonos por canal: `suave` 64, `medio` 32, `clasico` 16, `retro` 8, `poster` 4 |
 | `--size` | Tamaño final de la imagen, p. ej. `2560x1440` (por defecto `1920x1080`) |
 | `--quality` | Atajo de resolución: `fast` 1280x720, `normal` 1920x1080, `high` 2560x1440 |
 | `--mirror` | Refleja el terreno en horizontal |
 | `-p`, `--preview` | Dibuja también el resultado en la terminal, a color |
-| `-r`, `--random` | Surprise me: tira tema, niveles, rejilla y resolución |
+| `-r`, `--random` | Tira tema, niveles, rejilla y resolución al azar |
 | `-N`, `--seed` | Semilla manual (por defecto, la fecha del día) |
-| `--date` | Simula otra fecha: `--date 2026-01-15` |
-| `--yesterday` / `--tomorrow` | El fondo del día anterior o del siguiente |
+| `--date` | Usa otra fecha: `--date 2026-01-15` |
+| `--yesterday`, `--tomorrow` | El fondo del día anterior o del siguiente |
 | `-o`, `--out` | Ruta exacta del archivo de salida |
 | `-d`, `--dir` | Carpeta de salida (por defecto, la del propio binario) |
 | `--format` | `png` (por defecto) o `jpg` |
@@ -93,33 +98,34 @@ El PNG se escribe **junto al binario**, con el nombre de la fecha
 | `-l`, `--list` | Lista estilos, temas y niveles |
 | `--version` | Muestra la versión |
 
-Se aceptan tanto `--theme volcano` como `--theme=volcano`.
+Las opciones admiten las dos formas: `--theme volcano` y `--theme=volcano`.
 
 ### Ejemplos
 
 ```bash
-# Clásico de cada día, tema cálido y bien saturado
+# Tema cálido y bien saturado
 ./razorwall --theme volcano --levels retro
 
-# Sorpresa: tema, tamaño, rejilla y resolución al azar, y se ve en la terminal
+# Sorpresa: tema, tamaño, rejilla y resolución al azar, visto en la terminal
 ./razorwall --random --preview
 
 # Un fondo concreto y reproducible
 ./razorwall --seed 42 --theme island --pixels 480
 
-# Composición simétrica, muy grande
+# Composición simétrica a 1440p
 ./razorwall --mirror --quality high --out /tmp/paisaje.png
 
 # Ocho candidatos para elegir el mejor
 ./razorwall --gallery 8
 ```
 
-### El detalle de `--random`
+### Cómo se comporta `--random`
 
-Las opciones explícitas **ganan** sobre el azar. Si escribes
-`--random --theme neon`, te da tema neón fijo y tirado el resto.
-El nombre del archivo incluye lo que salió, para que las tiradas no se
-pisen entre sí:
+Las opciones que escribas explícitamente **ganan** sobre el azar. Con
+`--random --theme neon` obtienes tema neón fijo y el resto aleatorio.
+
+El nombre del archivo incluye lo que salió, para que las tiradas no se pisen
+entre sí:
 
 ```
 2026-09-30-neon-320-retro-ffih.png
@@ -132,25 +138,31 @@ pisen entre sí:
 
 ## Catálogo visual
 
-Todo lo de abajo está generado con el mismo seed (`20260930`) para que
-puedas comparar de verdad.
+Cada opción tiene su propia imagen, generada con la semilla `20260930` para
+que las comparaciones sirvan. Haz clic en cualquiera para verla a tamaño
+completo.
 
 ### Temas
 
-Cada tema define su propia rampa de bioma, de abismo a cumbre.
+Cada tema define su propia rampa de bioma, del abismo a la cumbre. Se
+generan con `./razorwall --theme <tema>`.
 
-![Los seis temas](images/themes-all.png)
+<table>
+<tr>
+<td width="50%"><img src="images/themes/island.png"><br><sub><b>island</b> — océano profundo, bajíos, playa y cumbres nevadas</sub></td>
+<td width="50%"><img src="images/themes/volcano.png"><br><sub><b>volcano</b> — basalte y roca oscura con vetas de lava</sub></td>
+</tr>
+<tr>
+<td><img src="images/themes/desert.png"><br><sub><b>desert</b> — dunas y cañones áridos, sin agua</sub></td>
+<td><img src="images/themes/glacier.png"><br><sub><b>glacier</b> — mar abierto, hielo y roca desnuda</sub></td>
+</tr>
+<tr>
+<td><img src="images/themes/jungle.png"><br><sub><b>jungle</b> — selva densa y riscos entre la vegetación</sub></td>
+<td><img src="images/themes/neon.png"><br><sub><b>neon</b> — synthwave entre cian, magenta y ámbar</sub></td>
+</tr>
+</table>
 
-| Tema | Descripción |
-| --- | --- |
-| `island` | Océanos profundos, playas yierra alta nevada |
-| `volcano` | Basalto, roca volcánica y lava incandescente |
-| `desert` | Dunas y cañones áridos, sin agua |
-| `glacier` | Mar abierto, hielo y roca desnuda |
-| `jungle` | Selva densa y riscos entre la vegetación |
-| `neon` | Interpolación synthwave entre cian, magenta y ámbar |
-
-Si no indicas `--theme`, el tema rota a diario pasando por los seis, y nunca
+Si no indicas `--theme`, el tema rota a diario pasando por los seis y nunca
 repite el del día anterior:
 
 ```
@@ -165,130 +177,298 @@ repite el del día anterior:
 
 ### Niveles de color
 
-Cuántos tonos distintos se usan por canal. Degradado a más tonos es casi
-continuo; a menos tonos, cada zona se lee como un plano de color puro.
+Cuántos tonos distintos se usan por canal. Con muchos tonos el degradado es
+casi continuo; con pocos, cada zona queda como un plano de color uniforme.
+Todas estas imágenes usan la misma semilla y la misma rejilla (`--pixels 200`),
+así que la única variable es el color.
 
-![Comparativa de niveles](images/levels-all.png)
-
-| Nivel | Tonos/canal | Para qué |
-| --- | --- | --- |
-| `suave` | 64 | Apenas sugiere el pixel art, mucho matiz |
-| `medio` | 32 | Intermedio, con transiciones visibles |
-| `clasico` | 16 | El equilibrio habitual (por defecto) |
-| `retro` | 8 | Paleta muy marcada, aspecto de game boy |
-| `poster` | 4 | Serigrafía, un solo plano por zona |
+<table>
+<tr>
+<td width="33%"><img src="images/levels/suave.png"><br><sub><b>suave</b> — 64 tonos/canal. Apenas sugiere el pixel art</sub></td>
+<td width="33%"><img src="images/levels/medio.png"><br><sub><b>medio</b> — 32 tonos/canal</sub></td>
+<td width="33%"><img src="images/levels/clasico.png"><br><sub><b>clasico</b> — 16 tonos/canal (por defecto)</sub></td>
+</tr>
+<tr>
+<td><img src="images/levels/retro.png"><br><sub><b>retro</b> — 8 tonos/canal, aspecto de Game Boy</sub></td>
+<td><img src="images/levels/poster.png"><br><sub><b>poster</b> — 4 tonos/canal, un plano por zona</sub></td>
+<td></td>
+</tr>
+</table>
 
 ### Resolución de la rejilla
 
-`--pixels` define el ancho de la rejilla sobre la que se calcula el ruido.
-Es el tamaño del "ladrillo" del pixel art: la rejilla se escala después al
-tamaño final con vecino más cercano, así que **cada celda se convierte en un
-bloque nítido**.
+`--pixels` fija el ancho de la rejilla sobre la que se calcula el ruido. La
+rejilla se amplía después al tamaño final con vecino más cercano, así que **cada
+celda se convierte en un bloque nítido**. El valor es, por tanto, el lado del
+bloque en píxeles de la imagen final.
 
-![Comparativa de rejillas](images/pixels-all.png)
+<table>
+<tr>
+<td width="33%"><img src="images/pixels/120.png"><br><sub><b>--pixels 120</b> — bloques de 16 px, casi mosaico</sub></td>
+<td width="33%"><img src="images/pixels/200.png"><br><sub><b>--pixels 200</b> — bloques de 10 px, aspecto Game Boy</sub></td>
+<td width="33%"><img src="images/pixels/320.png"><br><sub><b>--pixels 320</b> — bloques de 6 px (por defecto)</sub></td>
+</tr>
+<tr>
+<td><img src="images/pixels/480.png"><br><sub><b>--pixels 480</b> — bloques de 4 px</sub></td>
+<td><img src="images/pixels/640.png"><br><sub><b>--pixels 640</b> — bloques de 3 px</sub></td>
+<td></td>
+</tr>
+</table>
 
-| Valor | Blocks aprox. en 1920px | Efecto |
-| --- | --- | --- |
-| `120` | 16 px | Muy grueso, casi mosaico |
-| `200` | 10 px | Aspecto de Game Boy |
-| `320` | 6 px | Equilibrado (por defecto) |
-| `480` | 4 px | Detalle medio |
-| `640` | 3 px | Casi imagen normal, pero sin perder el bloque |
+El tiempo de render depende de `--pixels`, no de la resolución de salida: subir
+la rejilla de 120 a 960 multiplica el coste por unas cinco veces (0,05 s →
+0,24 s), mientras que pasar la salida de 1920x1080 a 2560x1440 apenas lo
+altera, porque el cálculo ocurre siempre en la rejilla pequeña.
 
-Valores más altos dan más detalle del terreno pero menos coarseness de pixel.
-El tiempo de render es prácticamente el mismo en todos los casos porque el
-cálculo ocurre en la rejilla pequeña.
+### Proporción de la imagen
+
+`--size` acepta cualquier proporción. La rejilla mantiene la relación del
+ancho, así que el terreno se estira verticalmente en formatos más altos:
+
+<table>
+<tr>
+<td><img src="images/size/21x9-2560x1080.png"><br><sub>21:9 ultrawide</sub></td>
+<td><img src="images/size/16x9-1920x1080.png"><br><sub>16:9 (por defecto)</sub></td>
+</tr>
+<tr>
+<td><img src="images/size/9x16-1080x1920.png"><br><sub>9:16 vertical</sub></td>
+<td><img src="images/size/1x1-1200x1200.png"><br><sub>1:1 cuadrado</sub></td>
+</tr>
+</table>
 
 ### Simetría
 
 `--mirror` refleja el terreno en el eje vertical. Queda más equilibrado como
-fondo de pantalla que el ruido puro, y útil si vas a poner iconos encima.
+fondo de pantalla que el ruido puro, y resulta cómodo si vas a poner iconos
+encima. Misma semilla en las dos:
 
-![Comparativa del espejo](images/mirror-compare.png)
+<table>
+<tr>
+<td width="50%"><img src="images/mirror/off.png"><br><sub>sin <code>--mirror</code></sub></td>
+<td width="50%"><img src="images/mirror/on.png"><br><sub>con <code>--mirror</code></sub></td>
+</tr>
+</table>
 
-### Pixel art vs. interpolado
+### Pixel art frente a interpolado
 
-Por defecto se escala con vecino más cercano (`Point`), que es lo que produce
-los bloques duros. Con `--smooth` se usa interpolación bilineal y el resultado
-se ve como una imagen normal, sin carácter pixel art.
+Por defecto el escalado usa vecino más cercano, que es lo que produce los
+bloques duros. Con `--smooth` se usa interpolación bilineal y el resultado se
+ve como una imagen normal, sin carácter pixel art.
 
-![Pixel art frente a smooth](images/smooth-compare.png)
+<table>
+<tr>
+<td width="50%"><img src="images/smooth/off.png"><br><sub>por defecto: bloques nítidos</sub></td>
+<td width="50%"><img src="images/smooth/on.png"><br><sub><code>--smooth</code>: bloques difuminados</sub></td>
+</tr>
+</table>
 
-> Para que la diferencia se note, la rejilla de estas dos imágenes es de 40 píxeles.
+*Para que la diferencia se aprecie, estas dos imágenes usan una rejilla de 40
+píxeles.*
 
 ### Modo aleatorio
 
 `--random` tira tema, niveles, rejilla y resolución, y usa entropía real del
-sistema en vez de la fecha, así que cada llamada da algo distinto.
+sistema en vez de la fecha, así que cada llamada da algo distinto. Seis
+ejecuciones seguidas:
 
-![Seis tiradas aleatorias](images/random-all.png)
+<table>
+<tr>
+<td width="33%"><img src="images/random/01.png"></td>
+<td width="33%"><img src="images/random/02.png"></td>
+<td width="33%"><img src="images/random/03.png"></td>
+</tr>
+<tr>
+<td><img src="images/random/04.png"></td>
+<td><img src="images/random/05.png"></td>
+<td><img src="images/random/06.png"></td>
+</tr>
+</table>
+
+### Galería
+
+`--gallery N` genera N variaciones a partir de la misma fecha, con semillas
+separadas por 7919, en una subcarpeta `gallery`:
+
+<table>
+<tr>
+<td width="25%"><img src="images/gallery/01.png"><br><sub>0001.png</sub></td>
+<td width="25%"><img src="images/gallery/02.png"><br><sub>0002.png</sub></td>
+<td width="25%"><img src="images/gallery/03.png"><br><sub>0003.png</sub></td>
+<td width="25%"><img src="images/gallery/04.png"><br><sub>0004.png</sub></td>
+</tr>
+</table>
+
+## En el navegador
+
+Hay una versión web en [`docs/`](docs/), publicada en GitHub Pages. Muestra el
+fondo a pantalla completa y lo genera en el equipo, con el mismo algoritmo que
+el binario.
+
+No hay paneles ni botones: solo tres deslizadores que aparecen al pasar el ratón
+por abajo, y el resto se hace con el ratón o el teclado.
+
+<table>
+<tr>
+<td width="33%"><b>clic</b> o <b>espacio</b><br><sub>fondo nuevo al azar</sub></td>
+<td width="33%"><b>arrastrar</b><br><sub>mueve el fondo, sin generar otro</sub></td>
+<td width="33%"><b>s</b><br><sub>descarga el PNG</sub></td>
+</tr>
+<tr>
+<td><b>1</b> … <b>6</b><br><sub>tema exacto</sub></td>
+<td><b>Mayús</b><br><sub>otra semilla, mismo tema</sub></td>
+<td><b>doble clic</b> o <b>0</b><br><sub>vuelve a centrar</sub></td>
+</tr>
+<tr>
+<td><b>rueda</b><br><sub>zoom en el cursor</sub></td>
+<td><b>m</b> / <b>i</b><br><sub>reflejo / interpolación</sub></td>
+<td><b>[</b> / <b>]</b><br><sub>menos / más tonos</sub></td>
+</tr>
+</table>
+
+Los deslizadores de abajo controlan los píxeles de la rejilla, los niveles de
+color y el zoom. El zoom no vuelve a generar la imagen: solo la amplía, así que
+responde al instante.
+
+### Compilar la versión web
+
+```bash
+GOOS=js GOARCH=wasm go build -trimpath -ldflags="-s -w" -o docs/razorwall.wasm .
+cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" docs/
+```
+
+`wasm_exec.js` es el pegamento entre Go y el navegador, y lo copia la propia
+toolchain; conviene versionarlo para que la página no dependa de que se
+olvide regenerarlo.
+
+La página **necesita servirse por http**, no vale con abrir el archivo a doble
+clic: los navegadores bloquean la lectura de un `.wasm` desde `file://`. Si lo
+abres en local y ves el aviso, es por eso.
+
+## Poner el fondo como wallpaper
+
+`razorwall` no toca la configuración de tu escritorio: genera la imagen y
+nada más. Eso es deliberado, para que la misma herramienta sirva en cualquier
+sistema sin inventariar gestores de ventanas.
+
+Fija el resultado con la herramienta que ya uses:
+
+```bash
+# GNOME
+gsettings set org.gnome.desktop.background picture-uri "file://$PWD/2026-09-30.png"
+
+# KDE Plasma
+plasma-apply-wallpaper 2026-09-30.png
+
+# Xfce
+xfconf-query -c xfce4-desktop -p /backdrop/workspace0/last-image -s "$PWD/2026-09-30.png"
+
+# X11 con feh
+feh --bg-fill 2026-09-30.png
+```
+
+Si prefieres automatizarlo, un `cron` diario que ejecute `razorwall` y tu
+comando de escritorio es suficiente:
+
+```cron
+17 6 * * * cd ~/RazorWall && ./razorwall --random && feh --bg-fill "$(ls -t *.png | head -1)"
+```
 
 ## Cómo funciona
 
-1. **La fecha es la semilla.** `2026-09-30` se convierte en el número
-   `20260930`. Mismo día, mismo fondo, siempre. Y cualquier día pasado se
-   puede regenerar con `--date`.
+1. **La fecha es la semilla.** `2026-09-30` se convierte en `20260930`. Mismo
+   día, mismo fondo, siempre.
 
 2. **Campo de altura con Perlin.** Se suman 4 a 7 octavas de ruido Perlin
-   clásico (gradientes aleatorios, no el de valor), con curva de suavizado
-   quintica. Se le aplica *domain warping*, que desplaza las coordenadas de
-   muestreo con otro ruido: así las costas se curvan y no salen círculos
-   ni manchas.
+   clásico (gradientes aleatorios, no ruido de valor), con curva de suavizado
+   quintica. Encima se aplica *domain warping*, que desplaza las coordenadas de
+   muestreo con otro ruido: así las costas se curvan y no salen círculos ni
+   manchas.
 
 3. **Bandas de bioma.** La altura se corta en franjas (abismo, mar, bajío,
-   playa, campo, bosque, roca, cumbre) según la rampa del tema, con
-   interpolación entre colores.
+   playa, campo, bosque, roca, cumbre) según la rampa del tema, interpolando el
+   color entre franjas.
 
-4. **Dithering ordenado.** Una matriz de Bayer 4x4 rompe los bordes rectos
-   entre bandas sin introducir ruido aleatorio, así que el resultado sigue
-   siendo reproducible.
+4. **Dithering ordenado.** Una matriz de Bayer 4x4 rompe los bordes rectos entre
+   franjas sin introducir ruido aleatorio, de modo que el resultado sigue siendo
+   reproducible.
 
-5. **Cuantización.** El color se reduce a N tonos por canal. Esto es lo que
-   produce el aspecto pixel art.
+5. **Cuantización.** El color se reduce a N tonos por canal. Esto es lo que da el
+   aspecto pixel art.
 
 6. **Escalado.** La rejilla (320x180 por defecto) se amplía al tamaño final.
 
-### El `--preview` en la terminal
+### Sobre `--preview`
 
-Con `--preview` el fondo se dibuja en el terminal usando bloques medios
-(`▀`) en color de 24 bits. Cada carácter representa dos píxeles verticales:
-el de arriba en primer plano, el de abajo en segundo plano.
+Con `--preview` el fondo se dibuja en la terminal con bloques medios (`▀`) en
+color de 24 bits: cada carácter representa dos píxeles verticales, el de arriba
+en primer plano y el de abajo en segundo plano. Necesitas una terminal con
+color verdadero; si la salida está redirigida a un archivo, se verá en blanco y
+negro.
+
+## Desarrollo
+
+### Compilar y probar
+
+```bash
+go build -o razorwall .
+go test ./...                     # núcleo: determinismo, ruido, escalado, CLI
+node test/wasm_test.cjs           # el wasm frente a la CLI, byte a byte
+node test/page_test.cjs           # el JS de docs/index.html con un DOM simulado
+gofmt -l .                        # debe salir vacío
+go vet ./...
+```
+
+Los tests de Go comprueban, entre otras cosas, que la misma semilla produzca
+siempre un PNG idéntico byte a byte, que semillas distintas den imágenes
+distintas, que el ruido se mantenga en rango y que la rotación diaria de temas
+no repita.
+
+`wasm_test.cjs` carga el módulo real de WebAssembly en Node y compara su salida
+con la del binario para los mismos parámetros: **tienen que coincidir byte a
+byte**. Si divergen, la web y la CLI ya no son el mismo generador.
+
+`page_test.cjs` ejecuta el script real de la página contra un DOM mínimo y
+comprueba que el cableado funciona: que cada control llega a `razorwall.render`
+con lo que corresponde, que arrastrar mueve sin regenerar y que el zoom no
+vuelve a dibujar.
+
+### Estructura
 
 ```
-▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
-▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
-▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
-▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
-▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+render.go         núcleo: ruido Perlin, temas, cuantización y escalado
+razorwall.go      CLI: banner, lectura de argumentos y escritura de archivos
+wasm.go           bindings para el navegador (syscall/js)
+razorwall_test.go tests del núcleo y de la CLI
+test/             pruebas del wasm y de la página (Node)
+docs/             la página web y el .wasm compilado
+images/           capturas del catálogo visual
 ```
 
-*(Bloques grises aquí: en un terminal de verdad cada uno lleva su color RGB.)*
+El núcleo no toca el disco ni la terminal, y por eso lo comparten sin cambios la
+CLI y el navegador. La entrada común es `Spec.Render`.
 
-## Detalles técnicos
+El logo ASCII del banner está incrustado como constante `logoLines`, así que el
+fuente no depende de ningún archivo externo.
 
-- **Rendimiento**: unos 70 ms por imagen a 1920x1080, en un solo hilo. El
-  trabajo pesado ocurre en la rejilla de 320x180 (57 600 píxeles), no en los
-  2 millones del archivo final: por eso no hace falta paralelizar.
-- **Sin dependencias**: solo `image/png` e `image/jpeg` de la stdlib. El
-  PNG se escribe directamente, sin pasar por herramientas externas.
-- **Determinismo**: misma semilla y mismas opciones producen un PNG idéntico
-  byte a byte. Verificado con `cmp`.
-- **El logo** del banner está incrustado como constante `logoLines` en el
-  propio `.go`, así que el fuente es autónomo. Si lo cambias en `logo.txt`,
-  actualiza esa constante.
+### Descargas
 
-### Un detalle sobre el ruido
+Hay binarios para Linux, Windows y macOS en la
+[página de releases](https://github.com/JDVA0/RazorWall/releases). No necesitas
+instalar Go para usarlos.
 
-Al principio los fondos salían con franjas verticales en vez de islas. La causa
-era que, dentro del bucle que recorre cada fila, el desplazamiento del
-*domain warping* se acumulaba sobre la variable `fy` en vez de aplicarse a una
-copia local: para cuando llegaba al final de la fila, el offset ya se había
-sumado 320 veces. El resultado era una tira vertical constante.
+Los releases los publica un workflow de GitHub Actions
+(`.github/workflows/release.yml`): primero pasa `gofmt`, `go vet` y los tests
+con detector de carreras, luego compila en cada plataforma, comprueba que cada
+binario genera un PNG de verdad, y adjunta los artefactos y sus checksums a la
+etiqueta que pulses.
 
-El comentario del código lo advierte, porque es muy fácil reintroducirlo:
+Para sacar una versión nueva:
 
-```go
-// El desplazamiento va a variables propias: aplicarlo sobre
-// baseX/baseY los contaminaría para el resto de la fila y el
-// ruido saldría a rayas verticales.
+```bash
+git tag v1.0.0
+git push origin v1.0.0
 ```
+
+## Licencia
+
+MIT. Ver [LICENSE](LICENSE).

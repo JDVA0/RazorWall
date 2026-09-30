@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RazorWall</title>
+<meta name="description" content="Wallpapers pixel art con ruido Perlin, generados en tu navegador.">
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23000'/><g fill='%238B3FD4'><rect x='6' y='7' width='5' height='5'/><rect x='14' y='7' width='5' height='5'/><rect x='22' y='7' width='4' height='5'/><rect x='6' y='15' width='5' height='5'/><rect x='14' y='15' width='5' height='5' fill='%23C07BF0'/><rect x='22' y='15' width='4' height='5'/><rect x='6' y='23' width='5' height='4'/><rect x='14' y='23' width='5' height='4'/><rect x='22' y='23' width='4' height='4' fill='%23E9D5FF'/></g></svg>">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#000;overflow:hidden}
+body{
+  font:400 12px/1 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Helvetica,Arial,sans-serif;
+  color:#fff;-webkit-font-smoothing:antialiased;
+  -webkit-user-select:none;user-select:none;
+  overscroll-behavior:none;
+}
+
+/* --- el fondo, a sangre, movible con el dedo o el raton --- */
+#stage{
+  position:fixed;inset:0;overflow:hidden;cursor:grab;touch-action:none;
+}
+#stage.drag{cursor:grabbing}
+#w{
+  position:absolute;left:50%;top:50%;
+  width:100vw;height:100vh;   /* el buffer es mas grande (devicePixelRatio), la caja no */
+  transform:translate(-50%,-50%);   /* centrado desde el CSS, no desde JS */
+  transform-origin:50% 50%;
+  image-rendering:pixelated;opacity:0;
+  transition:opacity .45s ease;
+  will-change:transform;
+}
+#w.on{opacity:1}
+
+/* --- barra de deslizadores --- */
+#bar{
+  position:fixed;left:50%;bottom:26px;transform:translateX(-50%);
+  display:flex;gap:26px;align-items:flex-end;
+  padding:0 4px;opacity:.15;
+  mix-blend-mode:difference;
+  transition:opacity .35s ease;
+}
+#bar:hover,#bar:focus-within{opacity:.85}
+.ctl{display:flex;flex-direction:column;gap:7px;width:104px}
+.ctl label{
+  font-size:9px;letter-spacing:.14em;text-transform:uppercase;
+  opacity:.65;white-space:nowrap;
+}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;
+  width:100%;height:14px;background:none;cursor:ew-resize;
+}
+input[type=range]::-webkit-slider-runnable-track{height:1px;background:#fff}
+input[type=range]::-moz-range-track{height:1px;background:#fff}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:9px;height:9px;border-radius:50%;
+  background:#fff;margin-top:-4px;
+}
+input[type=range]::-moz-range-thumb{
+  width:9px;height:9px;border:0;border-radius:50%;background:#fff;
+}
+input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border-radius:2px}
+
+/* --- pista de uso --- */
+#hint{
+  position:fixed;left:50%;bottom:96px;transform:translateX(-50%);
+  font-size:10px;letter-spacing:.18em;text-transform:uppercase;
+  white-space:nowrap;opacity:0;pointer-events:none;
+  mix-blend-mode:difference;transition:opacity .6s ease;
+}
+#hint.show{opacity:.5}
+#hint i{font-style:normal;opacity:.45;margin:0 .5em}
+
+/* --- aviso grande cuando no hay motor --- */
+#fatal{
+  position:fixed;inset:0;display:none;place-items:center;
+  padding:32px;text-align:center;background:#000;
+}
+#fatal.show{display:grid}
+#fatal .in{max-width:22ch}
+#fatal h1{
+  font:600 clamp(28px,6vw,44px)/1.12 -apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Helvetica,Arial,sans-serif;
+  letter-spacing:-.02em;margin-bottom:22px;
+}
+#fatal p{
+  font-size:15px;line-height:1.55;color:#8e8e93;letter-spacing:-.01em;
+}
+</style>
+</head>
+<body>
+
+<div id="stage"><canvas id="w"></canvas></div>
+
+<div id="hint">
+  <i>·</i>clic <i>·</i>espacio <i>·</i>arrastra <i>·</i>s guardar
+</div>
+
+<div id="bar">
+  <div class="ctl">
+    <label for="s1">píxeles</label>
+    <input id="s1" type="range" min="80" max="800" step="20" value="320">
+  </div>
+  <div class="ctl">
+    <label for="s2">niveles</label>
+    <input id="s2" type="range" min="0" max="4" step="1" value="2">
+  </div>
+  <div class="ctl">
+    <label for="s3">zoom</label>
+    <input id="s3" type="range" min="100" max="400" step="5" value="100">
+  </div>
+</div>
+
+<div id="fatal">
+  <div class="in">
+    <h1 id="fatal-t"></h1>
+    <p id="fatal-p"></p>
+  </div>
+</div>
+
+<script src="wasm_exec.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  var THEMES = ["island","volcano","desert","glacier","jungle","neon"];
+  var LEVELS = [64,32,16,8,4];
+
+  var stage = document.getElementById("stage");
+  var w     = document.getElementById("w");
+  var bar   = document.getElementById("bar");
+  var hint  = document.getElementById("hint");
+  var s1    = document.getElementById("s1");
+  var s2    = document.getElementById("s2");
+  var s3    = document.getElementById("s3");
+
+  var ctx = w.getContext("2d", {alpha:false});
+
+  var st = {
+    theme: THEMES[0],
+    levels: LEVELS[2],
+    pixels: 320,
+    seed: today(),
+    mirror: false,
+    smooth: false,
+    zoom: 1,
+    x: 0, y: 0
+  };
+
+  function today(){
+    var d = new Date();
+    return d.getFullYear()*10000 + (d.getMonth()+1)*100 + d.getDate();
+  }
+  function rnd(n){ return Math.floor(Math.random()*n); }
+
+  // --- lienzo -----------------------------------------------------------
+  // Se dibuja a la resolucion real del dispositivo (con tope) para que los
+  // bloques del pixel art no se interpolen.
+  function fit(){
+    var dpr = window.devicePixelRatio || 1;
+    var cw = window.innerWidth, ch = window.innerHeight;
+    var k = Math.min(dpr, 2560/cw, 1440/ch);
+    k = Math.max(1, k);
+    var nw = Math.max(64, Math.round(cw*k));
+    var nh = Math.max(64, Math.round(ch*k));
+    if(nw === w.width && nh === w.height) return false;
+    w.width = nw; w.height = nh;
+    return true;
+  }
+
+  // --- pintado ----------------------------------------------------------
+  var url = null, name = "razorwall.png";
+
+  function place(){
+    var over = (st.zoom - 1) * window.innerWidth / 2;
+    var limY = (st.zoom - 1) * window.innerHeight / 2;
+    st.x = Math.max(-over, Math.min(over, st.x));
+    st.y = Math.max(-limY, Math.min(limY, st.y));
+    w.style.transform =
+      "translate(-50%,-50%) translate(" + st.x + "px," + st.y + "px) scale(" + st.zoom + ")";
+  }
+
+  function draw(){
+    place();
+    if(!window.razorwall) return;
+    var bytes = window.razorwall.render({
+      seed: st.seed, theme: st.theme, levels: st.levels,
+      pixels: st.pixels, width: w.width, height: w.height,
+      mirror: st.mirror, smooth: st.smooth
+    });
+    if(!bytes) return;
+    var blob = new Blob([bytes], {type:"image/png"});
+    var next = URL.createObjectURL(blob);
+    var img = new Image();
+    img.onload = function(){
+      ctx.drawImage(img, 0, 0, w.width, w.height);
+      if(url) URL.revokeObjectURL(url);
+      url = next;
+      name = "razorwall-" + st.theme + "-" + st.seed + "-" +
+             w.width + "x" + w.height + ".png";
+      w.classList.add("on");
+    };
+    img.onerror = function(){ URL.revokeObjectURL(next); };
+    img.src = next;
+  }
+
+  var queued = false;
+  function schedule(){
+    if(queued) return;
+    queued = true;
+    requestAnimationFrame(function(){ queued = false; draw(); });
+  }
+
+  // --- acciones ---------------------------------------------------------
+  function next(){
+    st.theme  = THEMES[rnd(THEMES.length)];
+    st.levels = LEVELS[rnd(LEVELS.length)];
+    st.seed   = rnd(2147483647);
+    s2.value  = LEVELS.indexOf(st.levels);
+    st.x = st.y = 0; st.zoom = 1; s3.value = 100;
+    schedule();
+  }
+  function save(){
+    if(!url) return;
+    var a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    say("guardado");
+  }
+  function say(t){
+    hint.textContent = t;
+    hint.classList.add("show");
+    clearTimeout(say.t);
+    say.t = setTimeout(hintDefault, 900);
+  }
+  function hintDefault(){
+    hint.innerHTML = "<i>·</i>clic <i>·</i>espacio <i>·</i>arrastra <i>·</i>s guardar";
+    hint.classList.remove("hide");
+  }
+  var hideT = setTimeout(function(){ hint.classList.add("hide"); }, 5200);
+  function poke(){ clearTimeout(hideT); hint.classList.add("hide"); }
+
+  // --- arrastre ---------------------------------------------------------
+  var drag = null;
+  stage.addEventListener("pointerdown", function(e){
+    if(bar.contains(e.target)) return;
+    drag = { id:e.pointerId, x:e.clientX, y:e.clientY, ox:st.x, oy:st.y };
+    stage.classList.add("drag");
+    stage.setPointerCapture(e.pointerId);
+  });
+  stage.addEventListener("pointermove", function(e){
+    if(!drag || e.pointerId !== drag.id) return;
+    st.x = drag.ox + (e.clientX - drag.x);
+    st.y = drag.oy + (e.clientY - drag.y);
+    place();
+  });
+  function endDrag(e){
+    if(!drag || (e && e.pointerId !== drag.id)) return;
+    drag = null;
+    stage.classList.remove("drag");
+    // si no se movio, fue un clic
+  }
+  stage.addEventListener("pointerup", function(e){
+    var moved = drag && (Math.abs(e.clientX-drag.x) > 3 || Math.abs(e.clientY-drag.y) > 3);
+    endDrag(e);
+    if(!moved){ next(); poke(); }
+  });
+  stage.addEventListener("pointercancel", endDrag);
+  stage.addEventListener("dblclick", function(){
+    st.x = st.y = 0; st.zoom = 1; s3.value = 100; place();
+  });
+
+  // rueda: zoom centrado en el cursor
+  stage.addEventListener("wheel", function(e){
+    e.preventDefault();
+    var before = st.zoom;
+    st.zoom = Math.max(1, Math.min(4, st.zoom * (e.deltaY < 0 ? 1.12 : 1/1.12)));
+    if(st.zoom === before) return;
+    // mantiene el punto bajo el cursor quieto
+    var fx = (e.clientX / window.innerWidth - 0.5);
+    var fy = (e.clientY / window.innerHeight - 0.5);
+    var k = st.zoom / before;
+    st.x = st.x - fx * window.innerWidth * (k - 1);
+    st.y = st.y - fy * window.innerHeight * (k - 1);
+    s3.value = Math.round(st.zoom * 100);
+    place();
+    poke();
+  }, {passive:false});
+
+  // --- teclado ----------------------------------------------------------
+  document.addEventListener("keydown", function(e){
+    var k = e.key;
+    if(k === " " || k === "Spacebar" || k === "Enter"){ e.preventDefault(); next(); poke(); }
+    else if(k === "Shift"){ st.seed = rnd(2147483647); schedule(); poke(); }
+    else if(k === "s" || k === "S"){ save(); poke(); }
+    else if(k === "0"){ st.x=st.y=0; st.zoom=1; s3.value=100; place(); poke(); }
+    else if(k >= "1" && k <= "6"){ st.theme = THEMES[+k-1]; schedule(); poke(); }
+    else if(k === "m" || k === "M"){ st.mirror = !st.mirror; schedule(); poke(); }
+    else if(k === "i" || k === "I"){ st.smooth = !st.smooth; schedule(); poke(); }
+  });
+
+  // --- deslizadores -----------------------------------------------------
+  s1.addEventListener("input", function(){ st.pixels = +s1.value; schedule(); });
+  s2.addEventListener("input", function(){ st.levels = LEVELS[+s2.value]; schedule(); });
+  s3.addEventListener("input", function(){
+    st.zoom = +s3.value / 100;
+    place();
+  });
+
+  var rt;
+  window.addEventListener("resize", function(){
+    clearTimeout(rt);
+    rt = setTimeout(function(){ if(fit()) schedule(); else place(); }, 180);
+  });
+
+  // --- arranque ---------------------------------------------------------
+  function start(){
+    fit();
+    hintDefault();
+    hint.classList.add("show");
+    draw();
+  }
+
+  function fatal(t, p){
+    document.getElementById("fatal-t").textContent = t;
+    document.getElementById("fatal-p").textContent = p;
+    document.getElementById("fatal").classList.add("show");
+    bar.style.display = "none";
+    hint.style.display = "none";
+  }
+
+  window.onRazorwallReady = function(){
+    start();
+    window.addEventListener("load", function(){ fit(); draw(); });
+  };
+
+  fit();
+
+  // El navegador no deja que fetch lea un archivo del disco cuando la
+  // pagina se abre con file://, porque su origen es opaco. El modulo de
+  // WebAssembly solo se puede cargar por http(s), asi que conviene decir
+  // las dos cosas por las que falla: que falta servidor, y cual es.
+  if(location.protocol === "file:"){
+    fatal("Necesita un servidor",
+          "WebAssembly no se puede cargar desde el disco. Abre la carpeta " +
+          "con cualquier servidor local y entra por http:// en lugar de " +
+          "doble clic en el archivo.");
+  } else {
+    var go = new Go();
+    fetch("razorwall.wasm")
+      .then(function(r){
+        if(!r.ok) throw new Error("razorwall.wasm devolvió " + r.status);
+        return r.arrayBuffer();
+      })
+      .then(function(b){ return WebAssembly.instantiate(b, go.importObject); })
+      .then(function(res){ go.run(res.instance).catch(function(){}); })
+      .catch(function(e){
+        fatal("No se pudo cargar el motor", String(e && e.message ? e.message : e));
+        console.error("razorwall:", e);
+      });
+  }
+})();
+</script>
+</body>
+</html>
