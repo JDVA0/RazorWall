@@ -1,0 +1,9 @@
+# Binario compilado. Se genera con: go build -o razorwall razorwall.go
+/razorwall
+
+# El logo ya va incrustado en el fuente como constante logoLines,
+# asi que no hace falta versionarlo.
+/logo.txt
+
+# Wallpapers generados al ejecutar el programa (van en la raiz, no en images/)
+/*.png
