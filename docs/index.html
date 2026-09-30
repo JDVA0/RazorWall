@@ -36,8 +36,8 @@ body{
 /* --- barra de deslizadores --- */
 #bar{
   position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
-  display:flex;gap:24px;align-items:flex-end;
-  padding:13px 22px 11px;
+  display:flex;flex-direction:column;gap:14px;
+  padding:14px 22px 12px;
   /* negro opaco: con el fondo traslucido los deslizadores se perdian
      sobre las zonas claras del wallpaper */
   background:#000;
@@ -46,6 +46,23 @@ body{
   box-shadow:0 10px 34px rgba(0,0,0,.5);
 }
 #bar:hover,#bar:focus-within{border-color:rgba(255,255,255,.22)}
+
+/* selector de tema */
+.themes{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.themes button{
+  font:inherit;font-size:12px;letter-spacing:.02em;
+  color:rgba(255,255,255,.62);
+  background:transparent;border:1px solid rgba(255,255,255,.14);
+  border-radius:999px;padding:5px 12px;cursor:pointer;
+  transition:background .18s,border-color .18s,color .18s;
+}
+.themes button:hover{color:#fff;border-color:rgba(255,255,255,.34)}
+.themes button[aria-pressed="true"]{
+  background:#fff;border-color:#fff;color:#000;font-weight:600;
+}
+.themes button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+
+.sliders{display:flex;gap:24px;align-items:flex-end}
 .ctl{display:flex;flex-direction:column;gap:8px;width:104px}
 .ctl label{
   font-size:9px;letter-spacing:.14em;text-transform:uppercase;
@@ -117,6 +134,8 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
 </div>
 
 <div id="bar">
+  <div class="themes" id="themes" role="group" aria-label="Tema"></div>
+  <div class="sliders">
   <div class="ctl">
     <label for="s1">píxeles</label>
     <input id="s1" type="range" min="80" max="800" step="20" value="320">
@@ -132,6 +151,7 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
   <div class="ctl">
     <label for="s3">zoom</label>
     <input id="s3" type="range" min="100" max="400" step="5" value="100">
+  </div>
   </div>
 </div>
 
@@ -158,6 +178,7 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
   var s2    = document.getElementById("s2");
   var s3    = document.getElementById("s3");
   var s4    = document.getElementById("s4");
+  var themesEl = document.getElementById("themes");
 
   var ctx = w.getContext("2d", {alpha:false});
 
@@ -269,12 +290,55 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
     requestAnimationFrame(function(){ queued = false; draw(); });
   }
 
+  // --- selector de tema -------------------------------------------------
+  // Los botones se crean con los nombres que publica el motor, para que la
+  // pagina no lleve su propia copia de la lista.
+  var syncTema = function(){};
+
+  function construirTemas(){
+    var nombres = (window.razor && window.razor.themes) || THEMES;
+    var botones = nombres.map(function(nombre){
+      var b = document.createElement("button");
+      b.type = "button";
+      b.textContent = nombre;
+      b.setAttribute("aria-pressed", String(nombre === st.theme));
+      b.addEventListener("click", function(){
+        st.theme = nombre;
+        syncTema();
+        schedule();
+        poke();
+      });
+      themesEl.appendChild(b);
+      return b;
+    });
+
+    var bRnd = document.createElement("button");
+    bRnd.type = "button";
+    bRnd.textContent = "al azar";
+    bRnd.addEventListener("click", function(){
+      st.theme = THEMES[rnd(THEMES.length)];
+      syncTema();
+      schedule();
+      poke();
+    });
+    themesEl.appendChild(bRnd);
+
+    // El tema puede cambiar desde fuera (clic en el fondo, teclas 1-6), asi
+    // que hay una forma de reflejar el estado sin volver a crear botones.
+    syncTema = function(){
+      nombres.forEach(function(nombre, i){
+        botones[i].setAttribute("aria-pressed", String(nombre === st.theme));
+      });
+    };
+  }
+
   // --- acciones ---------------------------------------------------------
   function next(){
     st.theme  = THEMES[rnd(THEMES.length)];
     st.levels = LEVELS[rnd(LEVELS.length)];
     st.seed   = rnd(2147483647);
     st.noise  = rnd(21) * 5;
+    syncTema();
     s2.value  = LEVELS.indexOf(st.levels);
     s4.value  = st.noise;
     st.x = st.y = 0; st.zoom = 1; s3.value = 100;
@@ -361,7 +425,7 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
     else if(k === "Shift"){ st.seed = rnd(2147483647); schedule(); poke(); }
     else if(k === "s" || k === "S"){ save(); poke(); }
     else if(k === "0"){ st.x=st.y=0; st.zoom=1; s3.value=100; place(); poke(); }
-    else if(k >= "1" && k <= "6"){ st.theme = THEMES[+k-1]; schedule(); poke(); }
+    else if(k >= "1" && k <= "6"){ st.theme = THEMES[+k-1]; syncTema(); schedule(); poke(); }
     else if(k === "m" || k === "M"){ st.mirror = !st.mirror; schedule(); poke(); }
     else if(k === "i" || k === "I"){ st.smooth = !st.smooth; schedule(); poke(); }
   });
@@ -401,6 +465,7 @@ input[type=range]:focus-visible{outline:2px solid #fff;outline-offset:4px;border
   }
 
   window.onRazorReady = function(){
+    construirTemas();
     start();
     window.addEventListener("load", function(){ fit(); draw(); });
   };

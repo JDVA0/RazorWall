@@ -318,8 +318,14 @@ Hay una versión web en [`docs/`](docs/), publicada en GitHub Pages. Muestra el
 fondo a pantalla completa y lo genera en el equipo, con el mismo algoritmo que
 el binario.
 
-No hay paneles ni botones: solo tres deslizadores que aparecen al pasar el ratón
-por abajo, y el resto se hace con el ratón o el teclado.
+No hay paneles: abajo hay una sola barra negra con el selector de tema y los
+deslizadores, y el resto se hace con el ratón o el teclado.
+
+El selector de tema tiene los seis temas y un botón de **al azar** que elige uno.
+Los botones se construyen con los nombres que publica el motor, así que la
+página no lleva su propia copia de la lista. Cuando el tema cambia por otra vía
+—un clic en el fondo o las teclas `1` a `6`— el botón correspondiente se
+marca solo.
 
 <table>
 <tr>
@@ -339,7 +345,7 @@ por abajo, y el resto se hace con el ratón o el teclado.
 </tr>
 </table>
 
-Los deslizadores de abajo controlan los píxeles de la rejilla, los niveles de
+Los cuatro deslizadores controlan los píxeles de la rejilla, los niveles de
 color, la escala del ruido y el zoom. El zoom no vuelve a generar la imagen: solo la amplía, así que
 responde al instante.
 

@@ -33,7 +33,7 @@ function makeEl(tag) {
   const cls = new Set();
   const el = {
     tagName: (tag || "div").toUpperCase(),
-    children: [], className: "", _cls: cls,
+    children: [], className: "", _cls: cls, _attrs: {},
     _text: "", innerHTML: "",
     value: "", checked: false,
     width: 0, height: 0, devicePixelRatio: 2, style: {},
@@ -48,6 +48,9 @@ function makeEl(tag) {
     appendChild(c) { this.children.push(c); return c; },
     remove() {},
     click() { (handlers.click || []).forEach((f) => f.call(el)); },
+    setAttribute(k, v) { this._attrs[k] = String(v); },
+    getAttribute(k) { return this._attrs[k]; },
+    contains(n) { return n === el || this.children.indexOf(n) >= 0; },
     contains(n) { return n === el || this.children.indexOf(n) >= 0; },
     setPointerCapture() {},
     releasePointerCapture() {},
@@ -75,11 +78,12 @@ const fatalP = makeEl("p");
 class BlobStub {
   constructor(p) { this.size = p[0]?.length || 0; }
 }
+const themesEl = makeEl("div");
 const s4 = makeEl("input");
 s4.value = "40";
 const byId = {
   stage: makeEl("div"), w: canvas, bar: bar, hint: hint,
-  s1: slider, s2: s2, s3: s3, s4: s4,
+  s1: slider, s2: s2, s3: s3, s4: s4, themes: themesEl,
   fatal: fatal, "fatal-t": fatalT, "fatal-p": fatalP,
 };
 
@@ -168,6 +172,58 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const ini = llamadas[llamadas.length - 1];
   check("el fondo de hoy usa una semilla con forma de fecha",
     String(ini.seed).length === 8, "seed: " + ini.seed);
+  // --- selector de tema ---
+  const temaBtns = themesEl.children.filter((c) => c.tagName === "BUTTON");
+  check("un boton por tema mas el de al azar", temaBtns.length === 7,
+    "hay " + temaBtns.length);
+  check("los nombres vienen del motor",
+    temaBtns.slice(0, 6).map((b) => b.textContent).join(",") ===
+      sandbox.razor.themes.join(","),
+    temaBtns.slice(0, 6).map((b) => b.textContent).join(","));
+  check("el boton del ultimo es el aleatorio",
+    temaBtns[6].textContent === "al azar", temaBtns[6].textContent);
+  check("el tema actual sale marcado",
+    temaBtns[0].getAttribute("aria-pressed") === "true");
+
+  const bAntesTema = llamadas.length;
+  temaBtns[4].click();
+  await sleep(40);
+  check("pulsar un tema lo aplica",
+    llamadas.length > bAntesTema &&
+    llamadas[llamadas.length - 1].theme === "jungle",
+    llamadas[llamadas.length - 1].theme);
+  check("el tema pulsado queda marcado y el anterior no",
+    temaBtns[4].getAttribute("aria-pressed") === "true" &&
+    temaBtns[0].getAttribute("aria-pressed") === "false");
+
+  const bAntesRnd = llamadas.length;
+  temaBtns[6].click();
+  await sleep(40);
+  const tRnd = llamadas[llamadas.length - 1];
+  check("el boton de al azar elige un tema real",
+    llamadas.length > bAntesRnd && sandbox.razor.themes.indexOf(tRnd.theme) >= 0,
+    tRnd.theme);
+  const idxRnd = sandbox.razor.themes.indexOf(tRnd.theme);
+  check("el tema sorteado sale marcado",
+    temaBtns[idxRnd].getAttribute("aria-pressed") === "true");
+
+  const bAntesTecla = llamadas.length;
+  fire("keydown", { key: "2", preventDefault() {} });
+  await sleep(40);
+  check("la tecla de tema sincroniza el selector",
+    llamadas[llamadas.length - 1].theme === "volcano" &&
+    temaBtns[1].getAttribute("aria-pressed") === "true",
+    llamadas[llamadas.length - 1].theme + " / " +
+    temaBtns[1].getAttribute("aria-pressed"));
+
+  const bAntesClic = llamadas.length;
+  fire("keydown", { key: " ", preventDefault() {} });
+  await sleep(40);
+  const tClic = sandbox.razor.themes.indexOf(llamadas[llamadas.length - 1].theme);
+  check("el clic en el fondo tambien sincroniza el selector",
+    tClic >= 0 && temaBtns[tClic].getAttribute("aria-pressed") === "true",
+    "tema " + tClic);
+
   check("el primer render lleva el ruido por defecto",
     ini.noise === 40, String(ini.noise));
   check("la pista de uso aparece", hint._cls.has("show"));
